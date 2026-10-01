@@ -746,10 +746,33 @@ body::before {
   color: var(--af-gold-bright);
 }
 
+.timer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.timer-actions .btn-timer {
+  margin-bottom: 0;
+}
+
+.btn-timer-pause {
+  border-color: rgba(180, 140, 60, 0.65);
+  background: rgba(40, 32, 8, 0.55);
+  color: #f0d878;
+}
+
 .btn-timer:hover:not(:disabled),
 .btn-timer:active:not(:disabled) {
   border-color: var(--af-gold-bright);
   background: rgba(20, 70, 130, 0.9);
+}
+
+.btn-timer-pause:hover:not(:disabled),
+.btn-timer-pause:active:not(:disabled) {
+  border-color: #f0d878;
+  background: rgba(70, 55, 12, 0.75);
 }
 
 .btn-timer:disabled {

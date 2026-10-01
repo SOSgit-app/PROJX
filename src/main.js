@@ -24,8 +24,10 @@ import {
   downloadFlightBackup,
   formatDuration,
   getClassId,
+  getTaskElapsedMs,
   getTaskRecord,
   normalizeResult,
+  pauseTaskTimer,
   removeTaskComment,
   removeTaskPenalty,
   restoreFlightBackupFromFile,
@@ -713,15 +715,20 @@ function renderTask() {
   const operationalComments = record?.operationalComments || []
   const rubric = normalizeRubric(record?.rubric)
   const timerRunning = Boolean(record?.timerStartedAt)
-  const elapsedMs = timerRunning
-    ? Math.max(0, Date.now() - new Date(record.timerStartedAt).getTime())
-    : record?.durationMs
+  const timerPaused =
+    !timerRunning &&
+    typeof record?.timerAccumulatedMs === 'number' &&
+    record.timerAccumulatedMs > 0
+  const elapsedMs = getTaskElapsedMs(record)
   const canFinalize =
     Boolean(result) ||
     recordedPenalties.length > 0 ||
     studentComments.length > 0 ||
     operationalComments.length > 0 ||
-    rubricHasMarks(rubric)
+    rubricHasMarks(rubric) ||
+    timerRunning ||
+    timerPaused ||
+    record?.durationMs != null
   const actions = `
     <button type="button" class="btn" data-action="back-schedule">Schedule</button>
     <button type="button" class="btn" data-action="reset">New upload</button>
@@ -743,9 +750,22 @@ function renderTask() {
         <div class="grade-panel">
           <p class="grade-label">Task timer</p>
           <p class="timer-display" id="task-timer-display">${escapeHtml(formatDuration(elapsedMs))}</p>
-          <button type="button" class="btn btn-timer" data-action="start-timer" ${timerRunning ? 'disabled' : ''}>
-            ${timerRunning ? 'Timer running…' : record?.durationMs != null ? 'Restart timer' : 'Start timer'}
-          </button>
+          <div class="timer-actions">
+            <button type="button" class="btn btn-timer" data-action="start-timer" ${timerRunning ? 'disabled' : ''}>
+              ${
+                timerRunning
+                  ? 'Timer running…'
+                  : timerPaused
+                    ? 'Resume timer'
+                    : record?.durationMs != null
+                      ? 'Restart timer'
+                      : 'Start timer'
+              }
+            </button>
+            <button type="button" class="btn btn-timer btn-timer-pause" data-action="pause-timer" ${timerRunning ? '' : 'disabled'}>
+              Pause
+            </button>
+          </div>
 
           <p class="grade-label grade-label-spaced">Instructor result</p>
           <p class="grade-current is-${result || 'none'}">${escapeHtml(resultLabel(result))}</p>
@@ -753,7 +773,7 @@ function renderTask() {
             <button type="button" class="btn btn-complete${result === 'complete' ? ' is-selected' : ''}" data-grade="complete">Complete</button>
             <button type="button" class="btn btn-incomplete${result === 'incomplete' ? ' is-selected' : ''}" data-grade="incomplete">Incomplete</button>
           </div>
-          <button type="button" class="btn btn-clear" data-grade="clear" ${result || record?.durationMs != null ? '' : 'disabled'}>Clear result</button>
+          <button type="button" class="btn btn-clear" data-grade="clear" ${result || record?.durationMs != null || timerRunning || timerPaused ? '' : 'disabled'}>Clear result</button>
 
           <div class="penalty-block">
             <p class="grade-label">Penalties</p>
@@ -1087,13 +1107,37 @@ async function beginTaskTimer() {
     setState({ statusMessage: 'Set a class profile before starting the timer.' })
     return
   }
+  const wasPaused =
+    !state.taskRecord?.timerStartedAt &&
+    typeof state.taskRecord?.timerAccumulatedMs === 'number' &&
+    state.taskRecord.timerAccumulatedMs > 0
   const record = await startTaskTimer(classId, state.flightId, task.task)
   state.taskRecord = record
   state.recordCache[cacheKey(task.task)] = record
   state.classId = classId
-  state.statusMessage = `Timer started for ${task.task}`
+  state.statusMessage = wasPaused
+    ? `Timer resumed for ${task.task}`
+    : `Timer started for ${task.task}`
   render()
   startTimerTick()
+}
+
+async function pauseActiveTimer() {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile before pausing the timer.' })
+    return
+  }
+  if (!state.taskRecord?.timerStartedAt) return
+  const record = await pauseTaskTimer(classId, state.flightId, task.task)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  stopTimerTick()
+  state.statusMessage = `Timer paused for ${task.task} · ${formatDuration(getTaskElapsedMs(record))}`
+  render()
 }
 
 let timerTickId = null
@@ -1114,8 +1158,7 @@ function startTimerTick() {
       stopTimerTick()
       return
     }
-    const ms = Math.max(0, Date.now() - new Date(started).getTime())
-    el.textContent = formatDuration(ms)
+    el.textContent = formatDuration(getTaskElapsedMs(state.taskRecord))
   }, 250)
 }
 
@@ -1278,6 +1321,9 @@ function bindTaskActions() {
   })
   app.querySelectorAll('[data-action="start-timer"]').forEach((el) => {
     el.addEventListener('click', () => beginTaskTimer())
+  })
+  app.querySelectorAll('[data-action="pause-timer"]').forEach((el) => {
+    el.addEventListener('click', () => pauseActiveTimer())
   })
   app.querySelectorAll('[data-record-penalty]').forEach((el) => {
     el.addEventListener('click', () => savePenalty(el.dataset.recordPenalty))

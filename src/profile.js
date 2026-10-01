@@ -76,6 +76,7 @@ function emptyRecord(classId, flightId, taskCode) {
     operationalComments: [],
     rubric: emptyRubric(),
     timerStartedAt: null,
+    timerAccumulatedMs: 0,
     durationMs: null,
     updatedAt: null,
   }
@@ -112,6 +113,10 @@ export function normalizeRecord(raw, classId, flightId, taskCode) {
     operationalComments,
     rubric: normalizeRubric(raw.rubric),
     timerStartedAt: raw.timerStartedAt || null,
+    timerAccumulatedMs:
+      typeof raw.timerAccumulatedMs === 'number' && Number.isFinite(raw.timerAccumulatedMs)
+        ? Math.max(0, raw.timerAccumulatedMs)
+        : 0,
     durationMs:
       typeof raw.durationMs === 'number' && Number.isFinite(raw.durationMs)
         ? raw.durationMs
@@ -190,6 +195,7 @@ export async function buildFlightBackup(classId, flightId) {
         : [],
       rubric: normalizeRubric(r.rubric),
       timerStartedAt: r.timerStartedAt || null,
+      timerAccumulatedMs: r.timerAccumulatedMs ?? 0,
       durationMs: r.durationMs ?? null,
       updatedAt: r.updatedAt || null,
     })),
@@ -330,18 +336,44 @@ async function mutateTaskRecord(classId, flightId, taskCode, mutator) {
   return next
 }
 
+/** Live or final elapsed ms for a task record (running, paused, or graded). */
+export function getTaskElapsedMs(rec) {
+  if (!rec) return 0
+  const acc =
+    typeof rec.timerAccumulatedMs === 'number' && Number.isFinite(rec.timerAccumulatedMs)
+      ? Math.max(0, rec.timerAccumulatedMs)
+      : 0
+  if (rec.timerStartedAt) {
+    const started = new Date(rec.timerStartedAt).getTime()
+    const running = Number.isFinite(started) ? Math.max(0, Date.now() - started) : 0
+    return acc + running
+  }
+  if (acc > 0) return acc
+  if (typeof rec.durationMs === 'number' && Number.isFinite(rec.durationMs)) {
+    return Math.max(0, rec.durationMs)
+  }
+  return 0
+}
+
+function finalizeTimerDuration(rec) {
+  const total = getTaskElapsedMs(rec)
+  const hadTimer =
+    Boolean(rec.timerStartedAt) ||
+    (typeof rec.timerAccumulatedMs === 'number' && rec.timerAccumulatedMs > 0) ||
+    (typeof rec.durationMs === 'number' && rec.durationMs > 0)
+  rec.timerStartedAt = null
+  rec.timerAccumulatedMs = 0
+  if (hadTimer) rec.durationMs = total
+}
+
 export async function setTaskGrade(classId, flightId, taskCode, result) {
   return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
     const nextResult = result === 'clear' || result == null ? null : normalizeResult(result)
-    if (nextResult && rec.timerStartedAt) {
-      const started = new Date(rec.timerStartedAt).getTime()
-      if (Number.isFinite(started)) {
-        rec.durationMs = Math.max(0, Date.now() - started)
-      }
+    if (nextResult) {
+      finalizeTimerDuration(rec)
+    } else {
       rec.timerStartedAt = null
-    }
-    if (!nextResult) {
-      rec.timerStartedAt = null
+      rec.timerAccumulatedMs = 0
       rec.durationMs = null
     }
     rec.result = nextResult
@@ -351,7 +383,33 @@ export async function setTaskGrade(classId, flightId, taskCode, result) {
 
 export async function startTaskTimer(classId, flightId, taskCode) {
   return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    if (rec.timerStartedAt) return rec
+    // Fresh start / restart after a graded duration (not a pause resume).
+    const paused =
+      typeof rec.timerAccumulatedMs === 'number' && rec.timerAccumulatedMs > 0
+    if (!paused) {
+      rec.timerAccumulatedMs = 0
+      rec.durationMs = null
+    } else {
+      rec.durationMs = null
+    }
     rec.timerStartedAt = new Date().toISOString()
+    return rec
+  })
+}
+
+export async function pauseTaskTimer(classId, flightId, taskCode) {
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    if (!rec.timerStartedAt) return rec
+    const started = new Date(rec.timerStartedAt).getTime()
+    const acc =
+      typeof rec.timerAccumulatedMs === 'number' && Number.isFinite(rec.timerAccumulatedMs)
+        ? Math.max(0, rec.timerAccumulatedMs)
+        : 0
+    if (Number.isFinite(started)) {
+      rec.timerAccumulatedMs = acc + Math.max(0, Date.now() - started)
+    }
+    rec.timerStartedAt = null
     rec.durationMs = null
     return rec
   })
