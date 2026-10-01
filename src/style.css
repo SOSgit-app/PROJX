@@ -1138,6 +1138,31 @@ body::before {
   letter-spacing: 0.04em;
 }
 
+.class-folder-block {
+  margin-top: 0.55rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(200, 208, 220, 0.16);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.class-folder-status {
+  margin: 0;
+  color: var(--af-muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.btn-link-folder {
+  width: 100%;
+  min-height: 46px;
+}
+
+.class-profile-status {
+  text-align: left;
+  margin: 0.25rem 0 0;
+}
+
 /* Side menu */
 .menu-toggle {
   position: fixed;

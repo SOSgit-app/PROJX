@@ -523,6 +523,8 @@ function renderClassProfile() {
     <button type="button" class="btn" data-action="reset">Home</button>
   `
   const suggested = state.classId || ''
+  const linkedName = getLinkedFolderName()
+  const folderReady = canUseFolderApi()
 
   return `
     <div class="shell">
@@ -530,7 +532,7 @@ function renderClassProfile() {
       <div class="section-head">
         <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">New class session · Step 1</span>
         <h1>Identify class</h1>
-        <p>Enter the class name for this session (example: 26G). You’ll pick the flight after the matrix is uploaded.</p>
+        <p>Enter the class name and link a save folder on this device. You’ll pick the flight after the matrix is uploaded.</p>
       </div>
       <form id="class-profile-form" class="class-profile-panel" autocomplete="off">
         <label class="lock-label" for="class-id-input">Class name</label>
@@ -546,6 +548,22 @@ function renderClassProfile() {
           autofocus
         />
         <p class="class-profile-hint">Example path: <strong>${escapeHtml(suggested || '26G')}</strong> / {flight} / {task} /</p>
+
+        <div class="class-folder-block">
+          <p class="lock-label">Save folder on this device</p>
+          <p class="class-folder-status">${
+            state.folderLinked
+              ? `Linked to “${escapeHtml(linkedName || 'selected folder')}”. Grades, penalties, and comments will write here as .txt files.`
+              : folderReady
+                ? 'Optional but recommended: choose a folder so results are saved on disk during the class.'
+                : 'Folder linking needs Chrome or Edge on desktop. Progress still auto-saves in the browser.'
+          }</p>
+          <button type="button" class="btn ${state.folderLinked ? '' : 'btn-primary'} btn-link-folder" data-action="link-folder" ${folderReady ? '' : 'disabled'}>
+            ${state.folderLinked ? 'Change linked folder' : 'Link profile folder'}
+          </button>
+        </div>
+
+        ${state.statusMessage && state.step === 'class-profile' ? `<p class="status-message class-profile-status">${escapeHtml(state.statusMessage)}</p>` : ''}
         ${state.error ? `<p class="error" role="alert">${escapeHtml(state.error)}</p>` : ''}
         <button type="submit" class="btn btn-primary lock-submit">
           ${hasWorkbook ? 'Continue to squadrons' : 'Continue to upload'}
@@ -1016,13 +1034,14 @@ function bindChrome() {
     })
   })
   app.querySelectorAll('[data-action="link-folder"]').forEach((el) => {
-    el.addEventListener('click', async () => {
+    el.addEventListener('click', async (e) => {
+      e.preventDefault()
       try {
         await linkProfilesFolder()
         setState({
           folderLinked: true,
           menuOpen: false,
-          statusMessage: 'Profile folder linked. Task saves will write class/flight/task files.',
+          statusMessage: 'Profile folder linked. Task saves will write class/flight/task .txt files.',
         })
       } catch (err) {
         setState({
