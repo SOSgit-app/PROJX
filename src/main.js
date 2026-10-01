@@ -470,6 +470,8 @@ function renderSquadron() {
     <span class="file-chip" title="${escapeHtml(state.fileName)}">${escapeHtml(state.fileName)}</span>
     <button type="button" class="btn" data-action="reset">New upload</button>
   `
+
+  const cards = SQUADRONS.map((sq) => {
     const count = flightsForSquadron(flights, sq.id).length
     const disabled = count === 0
     return `
