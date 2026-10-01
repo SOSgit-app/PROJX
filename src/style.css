@@ -1148,6 +1148,20 @@ body::before {
   line-height: 1.4;
 }
 
+.class-safari-tips {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--af-mist);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.class-safari-tips strong {
+  color: var(--af-gold-bright);
+}
+
 .btn-link-folder {
   width: 100%;
   min-height: 46px;
@@ -1307,6 +1321,17 @@ body::before {
   text-transform: uppercase;
   font-size: 0.78rem;
   color: var(--af-muted);
+}
+
+.side-menu-note {
+  margin: 0 0 0.35rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid rgba(197, 179, 88, 0.28);
+  border-radius: var(--radius);
+  background: rgba(197, 179, 88, 0.08);
+  color: var(--af-mist);
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .side-menu-nav {

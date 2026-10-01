@@ -367,16 +367,18 @@ function renderSideMenu() {
           <span class="side-menu-link-title">${state.classId ? escapeHtml(state.classId) : 'Set class'}</span>
           <span class="side-menu-link-meta">Folder name like 26G</span>
         </button>
-        <button type="button" class="side-menu-link" data-action="link-folder" ${canUseFolderApi() ? '' : 'disabled'}>
+        ${
+          canUseFolderApi()
+            ? `<button type="button" class="side-menu-link" data-action="link-folder">
           <span class="side-menu-link-title">${state.folderLinked ? 'Folder linked' : 'Link profile folder'}</span>
           <span class="side-menu-link-meta">${
             state.folderLinked
               ? `Saving under “${escapeHtml(linkedName || 'selected folder')}”`
-              : canUseFolderApi()
-                ? 'Choose where class/flight/task folders are saved'
-                : 'Use Chrome/Edge to link a folder'
+              : 'Choose where class/flight/task folders are saved'
           }</span>
-        </button>
+        </button>`
+            : `<p class="side-menu-note">Safari auto-saves in this browser. Use Finalize and Flight Report to download backups.</p>`
+        }
         <button type="button" class="side-menu-link" data-action="restore-backup">
           <span class="side-menu-link-title">Restore backup</span>
           <span class="side-menu-link-meta">Reload a Finalize .json if data is lost</span>
@@ -503,21 +505,32 @@ function renderClassProfile() {
       <div class="section-head">
         <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">New class session · Step 1</span>
         <h1>Identify class</h1>
-        <p>Enter the class name and link a save folder on this device. You’ll pick the flight after the matrix is uploaded.</p>
+        <p>${
+          folderReady
+            ? 'Link a save folder (optional), enter the class name, then upload the matrix and pick your flight.'
+            : 'Enter the class name, then upload the matrix and pick your flight. On Safari, progress auto-saves in this browser — use Finalize and Flight Report to download backups.'
+        }</p>
       </div>
       <form id="class-profile-form" class="class-profile-panel" autocomplete="off">
         <div class="class-folder-block">
-          <p class="lock-label">Save folder on this device</p>
-          <p class="class-folder-status">${
-            state.folderLinked
-              ? `Linked to “${escapeHtml(linkedName || 'selected folder')}”. Grades, penalties, and comments will write here as .txt files.`
-              : folderReady
-                ? 'Optional but recommended: choose a folder so results are saved on disk during the class.'
-                : 'Folder linking needs Chrome or Edge on desktop. Progress still auto-saves in the browser.'
-          }</p>
-          <button type="button" class="btn ${state.folderLinked ? '' : 'btn-primary'} btn-link-folder" data-action="link-folder" ${folderReady ? '' : 'disabled'}>
-            ${state.folderLinked ? 'Change linked folder' : 'Link profile folder'}
-          </button>
+          <p class="lock-label">${folderReady ? 'Save folder on this device' : 'How saving works on this browser'}</p>
+          ${
+            folderReady
+              ? `<p class="class-folder-status">${
+                  state.folderLinked
+                    ? `Linked to “${escapeHtml(linkedName || 'selected folder')}”. Grades, penalties, and comments will write here as .txt files.`
+                    : 'Optional but recommended: choose a folder so results are saved on disk during the class.'
+                }</p>
+                <button type="button" class="btn ${state.folderLinked ? '' : 'btn-primary'} btn-link-folder" data-action="link-folder">
+                  ${state.folderLinked ? 'Change linked folder' : 'Link profile folder'}
+                </button>`
+              : `<p class="class-folder-status">Safari cannot link a folder for continuous disk writes. Your grades still auto-save here for the full class session.</p>
+                <ul class="class-safari-tips">
+                  <li><strong>Finalize</strong> on each task downloads a backup JSON you can Restore later.</li>
+                  <li><strong>Download Flight Report</strong> on the schedule page exports Pass/Fail, penalties, and comments as Excel.</li>
+                  <li>Keep this Safari tab open (or return to the same site) — clearing website data wipes the auto-save.</li>
+                </ul>`
+          }
         </div>
 
         <label class="lock-label" for="class-id-input">Class name</label>
@@ -673,7 +686,7 @@ function renderSchedule() {
         <div>
           <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">${escapeHtml(sq.unit)} · ${escapeHtml(sq.motto)}</span>
           <h1>Flight ${escapeHtml(flight.displayId)}</h1>
-          <p class="sub">Tap a task to grade, log penalties, and add comments. Progress auto-saves on this device for the full session — use Finalize on each task for a downloadable backup.</p>
+          <p class="sub">Tap a task to grade, log penalties, and add comments. Progress auto-saves in this browser for the full session. After each task, use Finalize to download a backup; use Download Flight Report for the Excel export.</p>
           <button type="button" class="btn btn-primary btn-flight-report" data-action="download-flight-report">
             Download Flight Report
           </button>
