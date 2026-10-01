@@ -11,19 +11,14 @@ import { downloadFlightReport } from './report.js'
 import {
   addTaskComment,
   addTaskPenalty,
-  canUseFolderApi,
   clearTaskComments,
   clearTaskPenalties,
   downloadFlightBackup,
   getClassId,
-  getFolderLinked,
-  getLinkedFolderName,
   getTaskRecord,
-  linkProfilesFolder,
-  profileFolderHint,
+  restoreFlightBackupFromFile,
   removeTaskComment,
   removeTaskPenalty,
-  restoreFlightBackupFromFile,
   setClassId,
   setTaskGrade,
 } from './profile.js'
@@ -72,7 +67,6 @@ const state = {
   resourceCode: null,
   returnStep: 'upload',
   classId: getClassId(),
-  folderLinked: getFolderLinked(),
   taskRecord: null,
   recordCache: {},
   statusMessage: '',
@@ -199,7 +193,7 @@ function requireClassId() {
   let classId = state.classId || getClassId()
   if (!classId) {
     const entered = window.prompt(
-      'Enter the class profile folder name (example: 26G):',
+      'Enter the class name (example: 26G):',
       '26G',
     )
     if (!entered || !entered.trim()) return null
@@ -340,7 +334,6 @@ function topBar(extraActions = '') {
 
 function renderSideMenu() {
   const open = state.menuOpen
-  const linkedName = getLinkedFolderName()
   return `
     <button
       type="button"
@@ -365,20 +358,9 @@ function renderSideMenu() {
         <p class="side-menu-section">Class profile</p>
         <button type="button" class="side-menu-link" data-action="set-class">
           <span class="side-menu-link-title">${state.classId ? escapeHtml(state.classId) : 'Set class'}</span>
-          <span class="side-menu-link-meta">Folder name like 26G</span>
+          <span class="side-menu-link-meta">Class name like 26G</span>
         </button>
-        ${
-          canUseFolderApi()
-            ? `<button type="button" class="side-menu-link" data-action="link-folder">
-          <span class="side-menu-link-title">${state.folderLinked ? 'Folder linked' : 'Link profile folder'}</span>
-          <span class="side-menu-link-meta">${
-            state.folderLinked
-              ? `Saving under “${escapeHtml(linkedName || 'selected folder')}”`
-              : 'Choose where class/flight/task folders are saved'
-          }</span>
-        </button>`
-            : `<p class="side-menu-note">Safari auto-saves in this browser. Use Finalize and Flight Report to download backups.</p>`
-        }
+        <p class="side-menu-note">Progress auto-saves in this browser. Use Finalize and Flight Report to download backups.</p>
         <button type="button" class="side-menu-link" data-action="restore-backup">
           <span class="side-menu-link-title">Restore backup</span>
           <span class="side-menu-link-meta">Reload a Finalize .json if data is lost</span>
@@ -496,8 +478,6 @@ function renderClassProfile() {
     <button type="button" class="btn" data-action="reset">Home</button>
   `
   const suggested = state.classId || ''
-  const linkedName = getLinkedFolderName()
-  const folderReady = canUseFolderApi()
 
   return `
     <div class="shell">
@@ -505,34 +485,9 @@ function renderClassProfile() {
       <div class="section-head">
         <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">New class session · Step 1</span>
         <h1>Identify class</h1>
-        <p>${
-          folderReady
-            ? 'Link a save folder (optional), enter the class name, then upload the matrix and pick your flight.'
-            : 'Enter the class name, then upload the matrix and pick your flight. On Safari, progress auto-saves in this browser — use Finalize and Flight Report to download backups.'
-        }</p>
+        <p>Enter the class name, then upload the matrix and pick your flight. Progress auto-saves in this browser — use Finalize and Flight Report to download backups.</p>
       </div>
       <form id="class-profile-form" class="class-profile-panel" autocomplete="off">
-        <div class="class-folder-block">
-          <p class="lock-label">${folderReady ? 'Save folder on this device' : 'How saving works on this browser'}</p>
-          ${
-            folderReady
-              ? `<p class="class-folder-status">${
-                  state.folderLinked
-                    ? `Linked to “${escapeHtml(linkedName || 'selected folder')}”. Grades, penalties, and comments will write here as .txt files.`
-                    : 'Optional but recommended: choose a folder so results are saved on disk during the class.'
-                }</p>
-                <button type="button" class="btn ${state.folderLinked ? '' : 'btn-primary'} btn-link-folder" data-action="link-folder">
-                  ${state.folderLinked ? 'Change linked folder' : 'Link profile folder'}
-                </button>`
-              : `<p class="class-folder-status">Safari cannot link a folder for continuous disk writes. Your grades still auto-save here for the full class session.</p>
-                <ul class="class-safari-tips">
-                  <li><strong>Finalize</strong> on each task downloads a backup JSON you can Restore later.</li>
-                  <li><strong>Download Flight Report</strong> on the schedule page exports Pass/Fail, penalties, and comments as Excel.</li>
-                  <li>Keep this Safari tab open (or return to the same site) — clearing website data wipes the auto-save.</li>
-                </ul>`
-          }
-        </div>
-
         <label class="lock-label" for="class-id-input">Class name</label>
         <input
           id="class-id-input"
@@ -545,7 +500,7 @@ function renderClassProfile() {
           maxlength="32"
           autofocus
         />
-        <p class="class-profile-hint">Example path: <strong>${escapeHtml(suggested || '26G')}</strong> / {flight} / {task} /</p>
+        <p class="class-profile-hint">Saves under class <strong>${escapeHtml(suggested || '26G')}</strong> for this flight’s tasks.</p>
 
         ${state.statusMessage && state.step === 'class-profile' ? `<p class="status-message class-profile-status">${escapeHtml(state.statusMessage)}</p>` : ''}
         ${state.error ? `<p class="error" role="alert">${escapeHtml(state.error)}</p>` : ''}
@@ -742,7 +697,6 @@ function renderTask() {
   const penaltyOptions = penaltiesForTask(task.task)
   const recordedPenalties = record?.penalties || []
   const comments = record?.comments || []
-  const folderPath = profileFolderHint(state.classId, state.flightId, task.task)
   const canFinalize =
     Boolean(result) || recordedPenalties.length > 0 || comments.length > 0
   const actions = `
@@ -759,7 +713,7 @@ function renderTask() {
           <div>
             <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Flight ${escapeHtml(flight.displayId)} · ${escapeHtml(task.phaseLabel)} · ${escapeHtml(task.dayLabel)}</span>
             <h1>Task ${escapeHtml(task.task)}</h1>
-            <p class="sub">Order ${task.order ?? '—'} · Auto-saves to this device · ${escapeHtml(folderPath)}</p>
+            <p class="sub">Order ${task.order ?? '—'} · Auto-saves in this browser</p>
           </div>
         </div>
 
@@ -943,7 +897,7 @@ function bindChrome() {
   app.querySelectorAll('[data-action="set-class"]').forEach((el) => {
     el.addEventListener('click', () => {
       const entered = window.prompt(
-        'Enter the class profile folder name (example: 26G):',
+        'Enter the class name (example: 26G):',
         state.classId || '26G',
       )
       if (!entered || !entered.trim()) return
@@ -957,24 +911,6 @@ function bindChrome() {
       })
       if (state.step === 'task' || state.step === 'schedule') {
         bootstrapStepData()
-      }
-    })
-  })
-  app.querySelectorAll('[data-action="link-folder"]').forEach((el) => {
-    el.addEventListener('click', async (e) => {
-      e.preventDefault()
-      try {
-        await linkProfilesFolder()
-        setState({
-          folderLinked: true,
-          menuOpen: false,
-          statusMessage: 'Profile folder linked. Task saves will write class/flight/task .txt files.',
-        })
-      } catch (err) {
-        setState({
-          menuOpen: false,
-          statusMessage: err.message || 'Could not link folder.',
-        })
       }
     })
   })
@@ -1041,7 +977,7 @@ async function saveGrade(action) {
   state.recordCache[cacheKey(task.task)] = record
   state.classId = classId
   state.statusMessage = result
-    ? `Saved ${result.toUpperCase()} to ${profileFolderHint(classId, state.flightId, task.task)}`
+    ? `Saved ${result.toUpperCase()} for ${task.task}`
     : `Cleared result for ${task.task}`
   render()
 }

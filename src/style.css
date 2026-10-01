@@ -1133,40 +1133,6 @@ body::before {
   letter-spacing: 0.04em;
 }
 
-.class-folder-block {
-  margin: 0 0 0.35rem;
-  padding: 0 0 0.85rem;
-  border-bottom: 1px solid rgba(200, 208, 220, 0.16);
-  display: grid;
-  gap: 0.45rem;
-}
-
-.class-folder-status {
-  margin: 0;
-  color: var(--af-muted);
-  font-size: 0.9rem;
-  line-height: 1.4;
-}
-
-.class-safari-tips {
-  margin: 0;
-  padding-left: 1.15rem;
-  color: var(--af-mist);
-  font-size: 0.88rem;
-  line-height: 1.45;
-  display: grid;
-  gap: 0.4rem;
-}
-
-.class-safari-tips strong {
-  color: var(--af-gold-bright);
-}
-
-.btn-link-folder {
-  width: 100%;
-  min-height: 46px;
-}
-
 .class-profile-status {
   text-align: left;
   margin: 0.25rem 0 0;
@@ -1373,55 +1339,6 @@ body::before {
   margin-top: 0.2rem;
   color: var(--af-muted);
   font-size: 0.88rem;
-}
-
-.folder-browser-note {
-  margin: 0.65rem 0 0;
-  max-width: 40rem;
-  color: var(--muted);
-  font-size: 0.92rem;
-  line-height: 1.45;
-}
-
-.folder-browser-panel {
-  display: grid;
-  gap: 0.85rem;
-}
-
-.folder-flight {
-  background: var(--surface);
-  border: 1px solid rgba(200, 208, 220, 0.18);
-  border-radius: var(--radius);
-  padding: 0.95rem 1rem;
-  box-shadow: var(--shadow);
-}
-
-.folder-flight h3 {
-  margin: 0 0 0.55rem;
-  font-family: var(--font-display);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 1.15rem;
-  color: var(--af-gold-bright);
-}
-
-.folder-tasks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin: 0;
-}
-
-.folder-task-chip {
-  display: inline-flex;
-  padding: 0.35rem 0.6rem;
-  border: 1px solid rgba(200, 208, 220, 0.25);
-  border-radius: var(--radius);
-  background: rgba(0, 20, 48, 0.45);
-  font-family: var(--font-display);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-size: 0.85rem;
 }
 
 .section-head strong {
