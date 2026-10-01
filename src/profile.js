@@ -1,7 +1,7 @@
 /**
  * Class profile storage.
  * Logical path: {classId}/{flightId}/{taskCode}/
- * Files: result.json, penalties.json, comments.json
+ * Disk files: result.txt, penalties.txt, comments.txt, record.txt
  *
  * Primary: IndexedDB (persists across the session / browser restarts on this device)
  * Optional: File System Access API writes a real folder tree on disk
@@ -229,20 +229,20 @@ export async function downloadClassFolderZip(classId) {
   for (const record of records) {
     const base = `${record.classId}/${record.flightId}/${record.taskCode}`
     files.push({
-      path: `${base}/result.json`,
-      data: jsonBytes({ result: record.result, updatedAt: record.updatedAt }),
+      path: `${base}/result.txt`,
+      data: textBytes(formatResultTxt(record)),
     })
     files.push({
-      path: `${base}/penalties.json`,
-      data: jsonBytes({ penalties: record.penalties, updatedAt: record.updatedAt }),
+      path: `${base}/penalties.txt`,
+      data: textBytes(formatPenaltiesTxt(record)),
     })
     files.push({
-      path: `${base}/comments.json`,
-      data: jsonBytes({ comments: record.comments, updatedAt: record.updatedAt }),
+      path: `${base}/comments.txt`,
+      data: textBytes(formatCommentsTxt(record)),
     })
     files.push({
-      path: `${base}/record.json`,
-      data: jsonBytes(record),
+      path: `${base}/record.txt`,
+      data: textBytes(formatRecordTxt(record)),
     })
   }
 
@@ -535,30 +535,107 @@ async function ensureDir(root, parts) {
   return dir
 }
 
-async function writeJsonFile(dir, name, data) {
+async function writeTextFile(dir, name, contents) {
   const file = await dir.getFileHandle(name, { create: true })
   const writable = await file.createWritable()
-  await writable.write(`${JSON.stringify(data, null, 2)}\n`)
+  await writable.write(String(contents || ''))
   await writable.close()
+}
+
+function resultLabel(result) {
+  if (result === 'pass') return 'Pass'
+  if (result === 'fail') return 'Fail'
+  return 'Not graded'
+}
+
+function formatStamp(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString()
+  } catch {
+    return String(iso)
+  }
+}
+
+function formatResultTxt(record) {
+  return [
+    `Task: ${record.taskCode}`,
+    `Class: ${record.classId}`,
+    `Flight: ${record.flightId}`,
+    `Result: ${resultLabel(record.result)}`,
+    `Updated: ${formatStamp(record.updatedAt) || '—'}`,
+    '',
+  ].join('\n')
+}
+
+function formatPenaltiesTxt(record) {
+  const penalties = Array.isArray(record.penalties) ? record.penalties : []
+  const lines = [
+    `Task: ${record.taskCode}`,
+    `Class: ${record.classId}`,
+    `Flight: ${record.flightId}`,
+    `Penalties: ${penalties.length}`,
+    `Updated: ${formatStamp(record.updatedAt) || '—'}`,
+    '',
+  ]
+  if (!penalties.length) {
+    lines.push('No penalties recorded.', '')
+    return lines.join('\n')
+  }
+  penalties.forEach((p, i) => {
+    lines.push(`${i + 1}. ${p.text || ''}`)
+    lines.push(`   Recorded: ${formatStamp(p.recordedAt) || '—'}`)
+    lines.push('')
+  })
+  return lines.join('\n')
+}
+
+function formatCommentsTxt(record) {
+  const comments = Array.isArray(record.comments) ? record.comments : []
+  const lines = [
+    `Task: ${record.taskCode}`,
+    `Class: ${record.classId}`,
+    `Flight: ${record.flightId}`,
+    `Comments: ${comments.length}`,
+    `Updated: ${formatStamp(record.updatedAt) || '—'}`,
+    '',
+  ]
+  if (!comments.length) {
+    lines.push('No comments recorded.', '')
+    return lines.join('\n')
+  }
+  comments.forEach((c, i) => {
+    lines.push(`${i + 1}. ${c.text || ''}`)
+    lines.push(`   Recorded: ${formatStamp(c.recordedAt) || '—'}`)
+    lines.push('')
+  })
+  return lines.join('\n')
+}
+
+function formatRecordTxt(record) {
+  return [
+    'PROJX Task Record',
+    '=================',
+    '',
+    formatResultTxt(record).trimEnd(),
+    '',
+    '--- Penalties ---',
+    formatPenaltiesTxt(record).split('\n').slice(5).join('\n').trimEnd(),
+    '',
+    '--- Comments ---',
+    formatCommentsTxt(record).split('\n').slice(5).join('\n').trimEnd(),
+    '',
+  ].join('\n')
 }
 
 async function syncRecordToFolder(record) {
   const root = await getWritableRoot()
   if (!root) return false
   const dir = await ensureDir(root, [record.classId, record.flightId, record.taskCode])
-  await writeJsonFile(dir, 'result.json', {
-    result: record.result,
-    updatedAt: record.updatedAt,
-  })
-  await writeJsonFile(dir, 'penalties.json', {
-    penalties: record.penalties,
-    updatedAt: record.updatedAt,
-  })
-  await writeJsonFile(dir, 'comments.json', {
-    comments: record.comments,
-    updatedAt: record.updatedAt,
-  })
-  await writeJsonFile(dir, 'record.json', record)
+  await writeTextFile(dir, 'result.txt', formatResultTxt(record))
+  await writeTextFile(dir, 'penalties.txt', formatPenaltiesTxt(record))
+  await writeTextFile(dir, 'comments.txt', formatCommentsTxt(record))
+  await writeTextFile(dir, 'record.txt', formatRecordTxt(record))
   return true
 }
 
