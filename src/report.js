@@ -9,6 +9,7 @@ import {
 /**
  * Build and download an organized flight scoring report (.xlsx).
  * Sheets: Summary | Task Scores | Rubric | Penalties | Student Comments | Operational Comments
+ * @param {'1'|'2'} phase - which phase to include
  */
 export async function downloadFlightReport({
   classId,
@@ -18,43 +19,29 @@ export async function downloadFlightReport({
   squadronUnit,
   phase1 = [],
   phase2 = [],
+  phase = '1',
 }) {
   const cls = String(classId || '').trim().toUpperCase()
   const flt = String(flightId || '').trim().toUpperCase()
   if (!cls) throw new Error('Set a class profile before downloading a report.')
   if (!flt) throw new Error('Select a flight before downloading a report.')
 
+  const phaseKey = String(phase) === '2' ? '2' : '1'
+  const phaseLabel = phaseKey === '2' ? 'Phase II' : 'Phase I'
+  const dayLabel = phaseKey === '2' ? 'Day 2' : 'Day 1'
+  const phaseTasks = phaseKey === '2' ? phase2 : phase1
+
   const stored = await listFlightRecords(cls, flt)
   const byTask = new Map(
     stored.map((r) => [String(r.taskCode || '').toUpperCase(), r]),
   )
 
-  const tasks = [
-    ...phase1.map((t, i) => ({
-      ...t,
-      phase: 'Phase I',
-      day: 'Day 1',
-      sort: i,
-    })),
-    ...phase2.map((t, i) => ({
-      ...t,
-      phase: 'Phase II',
-      day: 'Day 2',
-      sort: 100 + i,
-    })),
-  ]
-
-  for (const record of stored) {
-    const code = String(record.taskCode || '').toUpperCase()
-    if (!code || tasks.some((t) => t.task === code)) continue
-    tasks.push({
-      order: null,
-      task: code,
-      phase: 'Other',
-      day: '',
-      sort: 200,
-    })
-  }
+  const tasks = phaseTasks.map((t, i) => ({
+    ...t,
+    phase: phaseLabel,
+    day: dayLabel,
+    sort: i,
+  }))
 
   tasks.sort((a, b) => a.sort - b.sort || String(a.task).localeCompare(String(b.task)))
 
@@ -70,9 +57,10 @@ export async function downloadFlightReport({
   let timedTasks = 0
 
   const phaseStats = {
-    'Phase I': { total: 0, complete: 0, incomplete: 0, ungraded: 0 },
-    'Phase II': { total: 0, complete: 0, incomplete: 0, ungraded: 0 },
-    Other: { total: 0, complete: 0, incomplete: 0, ungraded: 0 },
+    total: 0,
+    complete: 0,
+    incomplete: 0,
+    ungraded: 0,
   }
 
   const scoreRows = [
@@ -124,7 +112,7 @@ export async function downloadFlightReport({
           ? 'Incomplete'
           : 'Not graded'
 
-    const stats = phaseStats[t.phase] || phaseStats.Other
+    const stats = phaseStats
     stats.total += 1
     if (result === 'complete') {
       complete += 1
@@ -251,8 +239,6 @@ export async function downloadFlightReport({
   }
 
   const exportedAt = new Date()
-  const p1 = phaseStats['Phase I']
-  const p2 = phaseStats['Phase II']
   const summaryRows = [
     ['PROJX Flight Report'],
     [],
@@ -261,19 +247,14 @@ export async function downloadFlightReport({
     ['Flight ID', flt],
     ['Squadron', squadronName || ''],
     ['Unit', squadronUnit || ''],
+    ['Phase', `${phaseLabel} · ${dayLabel}`],
     ['Exported', exportedAt.toLocaleString()],
     [],
-    ['Phase'],
-    [
-      'Phase I',
-      `${p1.complete} complete · ${p1.incomplete} incomplete · ${p1.ungraded} not graded · ${p1.total} tasks`,
-    ],
-    [
-      'Phase II',
-      `${p2.complete} complete · ${p2.incomplete} incomplete · ${p2.ungraded} not graded · ${p2.total} tasks`,
-    ],
-    [],
     ['Totals'],
+    [
+      phaseLabel,
+      `${phaseStats.complete} complete · ${phaseStats.incomplete} incomplete · ${phaseStats.ungraded} not graded · ${phaseStats.total} tasks`,
+    ],
     ['Tasks', tasks.length],
     ['Complete', complete],
     ['Incomplete', incomplete],
@@ -323,7 +304,8 @@ export async function downloadFlightReport({
   XLSX.utils.book_append_sheet(wb, operationalSheet, 'Operational Comments')
 
   const stamp = exportedAt.toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  const filename = `PROJX-${cls}-Flight${flt}-Report-${stamp}.xlsx`
+  const phaseFile = phaseKey === '2' ? 'PhaseII' : 'PhaseI'
+  const filename = `PROJX-${cls}-Flight${flt}-${phaseFile}-Report-${stamp}.xlsx`
   const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
   const blob = new Blob([out], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -340,6 +322,7 @@ export async function downloadFlightReport({
   return {
     classId: cls,
     flightId: flt,
+    phase: phaseLabel,
     filename,
     taskCount: tasks.length,
     complete,

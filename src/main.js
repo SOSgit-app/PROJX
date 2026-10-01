@@ -719,10 +719,15 @@ function renderSchedule() {
         <div>
           <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">${escapeHtml(sq.unit)} · ${escapeHtml(sq.motto)}</span>
           <h1>Flight ${escapeHtml(flight.displayId)}</h1>
-          <p class="sub">Tap a task to grade, log penalties, and add comments. Progress auto-saves in this browser for the full session. After each task, use Finalize to download a backup; use Download Flight Report for the Excel export.</p>
-          <button type="button" class="btn btn-primary btn-flight-report" data-action="download-flight-report">
-            Download Flight Report
-          </button>
+          <p class="sub">Tap a task to grade, log penalties, and add comments. Progress auto-saves in this browser for the full session. After each task, use Finalize to download a backup; download a Phase I or Phase II Flight Report for the Excel export.</p>
+          <div class="flight-report-actions">
+            <button type="button" class="btn btn-primary btn-flight-report" data-action="download-flight-report" data-phase="1">
+              Download Phase I Report
+            </button>
+            <button type="button" class="btn btn-primary btn-flight-report" data-action="download-flight-report" data-phase="2">
+              Download Phase II Report
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1462,7 +1467,7 @@ async function finalizeTask() {
   }
 }
 
-async function downloadCurrentFlightReport() {
+async function downloadCurrentFlightReport(phase = '1') {
   const flight = selectedFlight()
   const sq = selectedSquadron() || squadronForFlightId(state.flightId)
   const classId = requireClassId()
@@ -1474,6 +1479,7 @@ async function downloadCurrentFlightReport() {
     setState({ statusMessage: 'Select a flight first.' })
     return
   }
+  const phaseKey = String(phase) === '2' ? '2' : '1'
   try {
     const result = await downloadFlightReport({
       classId,
@@ -1483,9 +1489,10 @@ async function downloadCurrentFlightReport() {
       squadronUnit: sq?.unit || '',
       phase1: flight.phase1 || [],
       phase2: flight.phase2 || [],
+      phase: phaseKey,
     })
     setState({
-      statusMessage: `Downloaded ${result.filename} · ${result.complete} complete / ${result.incomplete} incomplete · ${result.penaltyCount} penalties · ${result.commentCount} comments`,
+      statusMessage: `Downloaded ${result.phase} report · ${result.filename} · ${result.complete} complete / ${result.incomplete} incomplete · ${result.penaltyCount} penalties · ${result.commentCount} comments`,
     })
   } catch (err) {
     setState({ statusMessage: err.message || 'Could not download flight report.' })
@@ -1610,7 +1617,7 @@ function render() {
     el.addEventListener('click', startNewClass)
   })
   app.querySelectorAll('[data-action="download-flight-report"]').forEach((el) => {
-    el.addEventListener('click', () => downloadCurrentFlightReport())
+    el.addEventListener('click', () => downloadCurrentFlightReport(el.dataset.phase || '1'))
   })
   app.querySelectorAll('[data-squadron]').forEach((el) => {
     el.addEventListener('click', () => {

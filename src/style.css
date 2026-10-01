@@ -508,8 +508,15 @@ body::before {
 }
 
 .btn-flight-report {
-  margin-top: 0.95rem;
+  margin-top: 0;
   min-height: 48px;
+}
+
+.flight-report-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin-top: 0.95rem;
 }
 
 .schedule-status {
