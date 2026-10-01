@@ -14,14 +14,12 @@ import {
   canUseFolderApi,
   clearTaskComments,
   clearTaskPenalties,
-  downloadClassFolderZip,
   downloadFlightBackup,
   getClassId,
   getFolderLinked,
   getLinkedFolderName,
   getTaskRecord,
   linkProfilesFolder,
-  openClassFolder,
   profileFolderHint,
   removeTaskComment,
   removeTaskPenalty,
@@ -58,7 +56,6 @@ const APP_STEPS = new Set([
   'task',
   'resources-list',
   'resources-view',
-  'folder-browser',
 ])
 
 const state = {
@@ -80,7 +77,6 @@ const state = {
   recordCache: {},
   statusMessage: '',
   error: '',
-  folderBrowse: null,
 }
 
 const app = document.querySelector('#app')
@@ -134,11 +130,7 @@ function resultLabel(result) {
 }
 
 function isResourceStep(step = state.step) {
-  return (
-    step === 'resources-list' ||
-    step === 'resources-view' ||
-    step === 'folder-browser'
-  )
+  return step === 'resources-list' || step === 'resources-view'
 }
 
 function rememberReturnStep() {
@@ -383,14 +375,6 @@ function renderSideMenu() {
               : canUseFolderApi()
                 ? 'Choose where class/flight/task folders are saved'
                 : 'Use Chrome/Edge to link a folder'
-          }</span>
-        </button>
-        <button type="button" class="side-menu-link" data-action="open-class-folder" ${canUseFolderApi() ? '' : 'disabled'}>
-          <span class="side-menu-link-title">Browse class folder</span>
-          <span class="side-menu-link-meta">${
-            state.classId
-              ? `View ${escapeHtml(state.classId)} in the app`
-              : 'Set a class first'
           }</span>
         </button>
         <button type="button" class="side-menu-link" data-action="restore-backup">
@@ -917,57 +901,6 @@ function renderResourcesView() {
   `
 }
 
-function renderFolderBrowser() {
-  const browse = state.folderBrowse
-  const actions = `
-    <button type="button" class="btn" data-action="download-class-folder">Download ZIP</button>
-    <button type="button" class="btn" data-action="close-folder-browser">Back</button>
-  `
-  if (!browse) {
-    return `
-      <div class="shell">
-        ${topBar(actions)}
-        <div class="section-head">
-          <h1>Class folder</h1>
-          <p>No folder data loaded.</p>
-        </div>
-      </div>
-    `
-  }
-
-  const flightBlocks = browse.flights.length
-    ? browse.flights
-        .map(
-          (f) => `
-      <section class="folder-flight">
-        <h3>Flight ${escapeHtml(f.id)}</h3>
-        <p class="folder-tasks">${
-          f.tasks.length
-            ? f.tasks.map((t) => `<span class="folder-task-chip">${escapeHtml(t)}</span>`).join('')
-            : '<span class="empty-phase">No task folders yet</span>'
-        }</p>
-      </section>
-    `,
-        )
-        .join('')
-    : '<p class="empty-phase">No flight folders yet. Grade a task to create them.</p>'
-
-  return `
-    <div class="shell">
-      ${topBar(actions)}
-      <div class="section-head">
-        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Linked profile folder</span>
-        <h1>${escapeHtml(browse.classId)}</h1>
-        <p>On disk under <strong>${escapeHtml(browse.pathLabel)}</strong> in the folder you linked with “Link profile folder.”</p>
-        <p class="folder-browser-note">Websites cannot open File Explorer. Use <strong>Download ZIP</strong> to get a copy you can open on your computer, or open the linked folder yourself in File Explorer.</p>
-      </div>
-      <div class="folder-browser-panel">
-        ${flightBlocks}
-      </div>
-    </div>
-  `
-}
-
 function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -1032,58 +965,6 @@ function bindChrome() {
       }
     })
   })
-  app.querySelectorAll('[data-action="open-class-folder"]').forEach((el) => {
-    el.addEventListener('click', async () => {
-      try {
-        const classId = state.classId || requireClassId()
-        if (!classId) {
-          setState({ menuOpen: false, statusMessage: 'Set a class profile first.' })
-          return
-        }
-        if (!state.folderLinked) {
-          setState({
-            menuOpen: false,
-            statusMessage: 'Link a profile folder first, then browse the class folder.',
-          })
-          return
-        }
-        const browse = await openClassFolder(classId, state.flightId || '')
-        setState({
-          menuOpen: false,
-          returnStep: rememberReturnStep(),
-          step: 'folder-browser',
-          folderBrowse: browse,
-          statusMessage: '',
-        })
-      } catch (err) {
-        setState({
-          menuOpen: false,
-          statusMessage: err.message || 'Could not browse class folder.',
-        })
-      }
-    })
-  })
-  app.querySelectorAll('[data-action="download-class-folder"]').forEach((el) => {
-    el.addEventListener('click', async () => {
-      try {
-        const classId = state.classId || requireClassId()
-        if (!classId) {
-          setState({ menuOpen: false, statusMessage: 'Set a class profile first.' })
-          return
-        }
-        const result = await downloadClassFolderZip(classId)
-        setState({
-          menuOpen: false,
-          statusMessage: `Downloaded PROJX-${result.classId}.zip — open it from your Downloads folder.`,
-        })
-      } catch (err) {
-        setState({
-          menuOpen: false,
-          statusMessage: err.message || 'Could not download class folder.',
-        })
-      }
-    })
-  })
   app.querySelectorAll('[data-action="restore-backup"]').forEach((el) => {
     el.addEventListener('click', () => {
       const input = app.querySelector('#restore-backup-input')
@@ -1114,15 +995,6 @@ function bindChrome() {
       }
     })
   }
-  app.querySelectorAll('[data-action="close-folder-browser"]').forEach((el) => {
-    el.addEventListener('click', () => {
-      const back =
-        state.returnStep && state.returnStep !== 'folder-browser'
-          ? state.returnStep
-          : 'upload'
-      setState({ step: back, folderBrowse: null, menuOpen: false })
-    })
-  })
   app.querySelectorAll('[data-open-notetaker]').forEach((el) => {
     el.addEventListener('click', () => {
       const code = String(el.dataset.openNotetaker || '').toUpperCase()
@@ -1375,7 +1247,6 @@ function startNewClass() {
     classId: '',
     taskRecord: null,
     recordCache: {},
-    folderBrowse: null,
     statusMessage: '',
     error: '',
   })
@@ -1449,7 +1320,6 @@ function render() {
   else if (state.step === 'task') html = renderTask()
   else if (state.step === 'resources-list') html = renderResourcesList()
   else if (state.step === 'resources-view') html = renderResourcesView()
-  else if (state.step === 'folder-browser') html = renderFolderBrowser()
 
   app.innerHTML = `${renderSideMenu()}${html}`
 
