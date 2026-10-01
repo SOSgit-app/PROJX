@@ -393,14 +393,6 @@ function renderSideMenu() {
               : 'Set a class first'
           }</span>
         </button>
-        <button type="button" class="side-menu-link" data-action="download-class-folder">
-          <span class="side-menu-link-title">Download class ZIP</span>
-          <span class="side-menu-link-meta">${
-            state.classId
-              ? `All flights for ${escapeHtml(state.classId)}`
-              : 'Set a class first'
-          }</span>
-        </button>
         <button type="button" class="side-menu-link" data-action="restore-backup">
           <span class="side-menu-link-title">Restore backup</span>
           <span class="side-menu-link-meta">Reload a Finalize .json if data is lost</span>
