@@ -132,7 +132,14 @@ export async function linkProfilesFolder() {
   const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
   await saveHandle(handle)
   setFolderLinked(true)
+  const meta = loadMeta()
+  meta.rootFolderName = handle.name || 'Profiles'
+  saveMeta(meta)
   return handle
+}
+
+export function getLinkedFolderName() {
+  return String(loadMeta().rootFolderName || '').trim()
 }
 
 async function getWritableRoot() {
@@ -147,6 +154,52 @@ async function getWritableRoot() {
     }
   }
   return null
+}
+
+/**
+ * Ensure the class folder exists under the linked profiles root,
+ * optionally scoped to the current flight, then return a browse summary.
+ */
+export async function openClassFolder(classId, flightId = '') {
+  if (!canUseFolderApi()) {
+    throw new Error('Opening folders needs Chrome/Edge on desktop.')
+  }
+  const root = await getWritableRoot()
+  if (!root) {
+    throw new Error('Link a profile folder first from the menu.')
+  }
+  const cls = String(classId || '').trim().toUpperCase()
+  if (!cls) {
+    throw new Error('Set a class profile first.')
+  }
+
+  const parts = [cls]
+  const flight = String(flightId || '').trim().toUpperCase()
+  if (flight) parts.push(flight)
+
+  const target = await ensureDir(root, parts)
+  void target
+
+  const flights = []
+  const classDir = await ensureDir(root, [cls])
+  for await (const [name, handle] of classDir.entries()) {
+    if (handle.kind !== 'directory') continue
+    const tasks = []
+    for await (const [taskName, taskHandle] of handle.entries()) {
+      if (taskHandle.kind === 'directory') tasks.push(taskName)
+    }
+    tasks.sort()
+    flights.push({ id: name, tasks })
+  }
+  flights.sort((a, b) => a.id.localeCompare(b.id))
+
+  return {
+    rootName: root.name || getLinkedFolderName() || 'Profiles',
+    classId: cls,
+    flightId: flight || null,
+    pathLabel: `${root.name || getLinkedFolderName() || 'Profiles'}/${parts.join('/')}`,
+    flights,
+  }
 }
 
 async function ensureDir(root, parts) {
