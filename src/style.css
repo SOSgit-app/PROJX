@@ -986,6 +986,17 @@ body::before {
   line-height: 1.35;
 }
 
+.recorded-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.55rem;
+  align-items: start;
+}
+
+.recorded-item-main {
+  min-width: 0;
+}
+
 .recorded-list li span {
   display: block;
   margin-top: 0.3rem;
@@ -994,6 +1005,36 @@ body::before {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-size: 0.7rem;
+}
+
+.btn-icon-delete {
+  appearance: none;
+  flex-shrink: 0;
+  width: 2.35rem;
+  height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(239, 154, 154, 0.45);
+  border-radius: var(--radius);
+  background: rgba(140, 40, 40, 0.28);
+  color: #ef9a9a;
+  cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.btn-icon-delete svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.btn-icon-delete:hover,
+.btn-icon-delete:active {
+  background: rgba(183, 28, 28, 0.55);
+  border-color: #ef9a9a;
+  color: #ffcdd2;
 }
 
 .status-message {

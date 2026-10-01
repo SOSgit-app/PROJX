@@ -709,6 +709,26 @@ export async function clearTaskComments(classId, flightId, taskCode) {
   })
 }
 
+export async function removeTaskPenalty(classId, flightId, taskCode, penaltyId) {
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    const id = String(penaltyId || '')
+    if (id) {
+      rec.penalties = rec.penalties.filter((p) => String(p.id) !== id)
+    }
+    return rec
+  })
+}
+
+export async function removeTaskComment(classId, flightId, taskCode, commentId) {
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    const id = String(commentId || '')
+    if (id) {
+      rec.comments = rec.comments.filter((c) => String(c.id) !== id)
+    }
+    return rec
+  })
+}
+
 export function profileFolderHint(classId, flightId, taskCode) {
   const cls = classId || '{class}'
   const flt = flightId || '{flight}'

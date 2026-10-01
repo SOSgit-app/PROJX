@@ -23,6 +23,8 @@ import {
   linkProfilesFolder,
   openClassFolder,
   profileFolderHint,
+  removeTaskComment,
+  removeTaskPenalty,
   restoreFlightBackupFromFile,
   setClassId,
   setTaskGrade,
@@ -795,7 +797,17 @@ function renderTask() {
                 ? `<ul class="recorded-list">
                     ${recordedPenalties
                       .map(
-                        (p) => `<li><strong>Penalty</strong> · ${escapeHtml(p.text)}<span>${escapeHtml(formatWhen(p.recordedAt))}</span></li>`,
+                        (p) => `<li class="recorded-item">
+                          <div class="recorded-item-main">
+                            <strong>Penalty</strong> · ${escapeHtml(p.text)}
+                            <span>${escapeHtml(formatWhen(p.recordedAt))}</span>
+                          </div>
+                          <button type="button" class="btn-icon-delete" data-delete-penalty="${escapeHtml(p.id || '')}" aria-label="Delete penalty" title="Delete penalty">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                          </button>
+                        </li>`,
                       )
                       .join('')}
                   </ul>
@@ -813,7 +825,17 @@ function renderTask() {
                 ? `<ul class="recorded-list">
                     ${comments
                       .map(
-                        (c) => `<li><strong>Comment</strong> · ${escapeHtml(c.text)}<span>${escapeHtml(formatWhen(c.recordedAt))}</span></li>`,
+                        (c) => `<li class="recorded-item">
+                          <div class="recorded-item-main">
+                            <strong>Comment</strong> · ${escapeHtml(c.text)}
+                            <span>${escapeHtml(formatWhen(c.recordedAt))}</span>
+                          </div>
+                          <button type="button" class="btn-icon-delete" data-delete-comment="${escapeHtml(c.id || '')}" aria-label="Delete comment" title="Delete comment">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                          </button>
+                        </li>`,
                       )
                       .join('')}
                   </ul>
@@ -1215,6 +1237,38 @@ async function clearComments() {
   render()
 }
 
+async function deletePenalty(penaltyId) {
+  const task = activeTaskRecord()
+  if (!task || !penaltyId) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile first.' })
+    return
+  }
+  const record = await removeTaskPenalty(classId, state.flightId, task.task, penaltyId)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  state.statusMessage = `Deleted penalty for ${task.task}`
+  render()
+}
+
+async function deleteComment(commentId) {
+  const task = activeTaskRecord()
+  if (!task || !commentId) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile first.' })
+    return
+  }
+  const record = await removeTaskComment(classId, state.flightId, task.task, commentId)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  state.statusMessage = `Deleted comment for ${task.task}`
+  render()
+}
+
 function bindTaskActions() {
   app.querySelectorAll('[data-grade]').forEach((el) => {
     el.addEventListener('click', () => saveGrade(el.dataset.grade))
@@ -1235,6 +1289,12 @@ function bindTaskActions() {
   })
   app.querySelectorAll('[data-action="clear-comments"]').forEach((el) => {
     el.addEventListener('click', () => clearComments())
+  })
+  app.querySelectorAll('[data-delete-penalty]').forEach((el) => {
+    el.addEventListener('click', () => deletePenalty(el.dataset.deletePenalty))
+  })
+  app.querySelectorAll('[data-delete-comment]').forEach((el) => {
+    el.addEventListener('click', () => deleteComment(el.dataset.deleteComment))
   })
   app.querySelectorAll('[data-action="finalize-task"]').forEach((el) => {
     el.addEventListener('click', () => finalizeTask())
