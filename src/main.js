@@ -41,6 +41,7 @@ function unlockSession() {
 
 const APP_STEPS = new Set([
   'upload',
+  'class-profile',
   'squadron',
   'flight',
   'schedule',
@@ -237,19 +238,18 @@ async function handleFile(file) {
     const buffer = await file.arrayBuffer()
     const workbook = parseProjectXWorkbook(buffer)
     workbook.fileLabel = file.name
-    requireClassId()
     setState({
       workbook,
       fileName: file.name,
       error: '',
-      step: 'squadron',
+      step: 'class-profile',
       squadronId: null,
       flightId: null,
       activeTask: null,
       menuOpen: false,
       resourceVersion: null,
       resourceCode: null,
-      returnStep: 'squadron',
+      returnStep: 'class-profile',
       classId: getClassId(),
       penaltiesOpen: false,
       taskRecord: null,
@@ -422,7 +422,43 @@ function renderUpload() {
           ${state.error ? `<p class="error" role="alert">${escapeHtml(state.error)}</p>` : ''}
         </div>
       </section>
-      <p class="footer-note">Reads the “Data Entry Matrix” sheet · Use the menu to set class profile and open Version A/B TASK Resources</p>
+      <p class="footer-note">Reads the “Data Entry Matrix” sheet · After upload you’ll set the class profile, then select squadron and flight</p>
+    </div>
+  `
+}
+
+function renderClassProfile() {
+  const actions = `
+    <span class="file-chip" title="${escapeHtml(state.fileName)}">${escapeHtml(state.fileName)}</span>
+    <button type="button" class="btn" data-action="reset">New upload</button>
+  `
+  const suggested = state.classId || '26G'
+
+  return `
+    <div class="shell">
+      ${topBar(actions)}
+      <div class="section-head">
+        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Step 2</span>
+        <h1>Set class profile</h1>
+        <p>Name the class folder used to store flight and task results (example: 26G). Data saves as class / flight / task.</p>
+      </div>
+      <form id="class-profile-form" class="class-profile-panel" autocomplete="off">
+        <label class="lock-label" for="class-id-input">Class name</label>
+        <input
+          id="class-id-input"
+          name="classId"
+          type="text"
+          class="lock-input"
+          value="${escapeHtml(suggested)}"
+          placeholder="26G"
+          required
+          maxlength="32"
+          autofocus
+        />
+        <p class="class-profile-hint">Example path: <strong>${escapeHtml(suggested || '26G')}</strong> / B21 / 4A /</p>
+        ${state.error ? `<p class="error" role="alert">${escapeHtml(state.error)}</p>` : ''}
+        <button type="submit" class="btn btn-primary lock-submit">Continue to squadrons</button>
+      </form>
     </div>
   `
 }
@@ -430,11 +466,10 @@ function renderUpload() {
 function renderSquadron() {
   const flights = state.workbook?.flights || []
   const actions = `
+    <button type="button" class="btn" data-action="back-class-profile">Class profile</button>
     <span class="file-chip" title="${escapeHtml(state.fileName)}">${escapeHtml(state.fileName)}</span>
     <button type="button" class="btn" data-action="reset">New upload</button>
   `
-
-  const cards = SQUADRONS.map((sq) => {
     const count = flightsForSquadron(flights, sq.id).length
     const disabled = count === 0
     return `
@@ -457,7 +492,7 @@ function renderSquadron() {
     <div class="shell">
       ${topBar(actions)}
       <div class="section-head">
-        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Step 2</span>
+        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Step 3</span>
         <h1>Select your squadron</h1>
         <p>Choose the student squadron you are instructing. Only squadrons present in the uploaded matrix are selectable.</p>
       </div>
@@ -920,6 +955,34 @@ async function bootstrapStepData() {
   }
 }
 
+function bindClassProfile() {
+  const form = app.querySelector('#class-profile-form')
+  const input = app.querySelector('#class-id-input')
+  if (!form) return
+  form.addEventListener('submit', (e) => {
+    e.preventDefault()
+    const value = String(input?.value || '').trim()
+    if (!value) {
+      setState({ error: 'Enter a class profile name (example: 26G).' })
+      return
+    }
+    const classId = setClassId(value)
+    setState({
+      classId,
+      error: '',
+      step: 'squadron',
+      returnStep: 'squadron',
+      recordCache: {},
+      taskRecord: null,
+      statusMessage: '',
+    })
+  })
+  input?.addEventListener('input', () => {
+    const hint = app.querySelector('.class-profile-hint strong')
+    if (hint) hint.textContent = String(input.value || '').trim() || '26G'
+  })
+}
+
 function bindLock() {
   const form = app.querySelector('#lock-form')
   const input = app.querySelector('#app-password')
@@ -949,6 +1012,7 @@ function render() {
 
   let html = ''
   if (state.step === 'upload') html = renderUpload()
+  else if (state.step === 'class-profile') html = renderClassProfile()
   else if (state.step === 'squadron') html = renderSquadron()
   else if (state.step === 'flight') html = renderFlight()
   else if (state.step === 'schedule') html = renderSchedule()
@@ -959,6 +1023,7 @@ function render() {
   app.innerHTML = `${renderSideMenu()}${html}`
 
   if (state.step === 'upload') bindUpload(app)
+  if (state.step === 'class-profile') bindClassProfile()
   bindChrome()
   if (state.step === 'task') bindTaskActions()
 
@@ -975,6 +1040,17 @@ function render() {
         menuOpen: false,
         penaltiesOpen: false,
         taskRecord: null,
+      }),
+    )
+  })
+  app.querySelectorAll('[data-action="back-class-profile"]').forEach((el) => {
+    el.addEventListener('click', () =>
+      setState({
+        step: 'class-profile',
+        squadronId: null,
+        flightId: null,
+        activeTask: null,
+        menuOpen: false,
       }),
     )
   })

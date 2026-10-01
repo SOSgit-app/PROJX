@@ -905,6 +905,30 @@ body::before {
   min-height: 48px;
 }
 
+.class-profile-panel {
+  width: min(480px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: clamp(1.1rem, 3vw, 1.5rem);
+  display: grid;
+  gap: 0.55rem;
+  animation: rise 480ms ease both;
+}
+
+.class-profile-hint {
+  margin: 0.15rem 0 0.35rem;
+  color: var(--af-muted);
+  font-size: 0.92rem;
+}
+
+.class-profile-hint strong {
+  color: var(--af-gold-bright);
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+}
+
 /* Side menu */
 .menu-toggle {
   position: fixed;
