@@ -1317,9 +1317,13 @@ async function finalizeTask() {
   }
   try {
     const result = await downloadFlightBackup(classId, state.flightId)
-    setState({
-      statusMessage: `Backup saved: ${result.filename} (${result.taskCount} task${result.taskCount === 1 ? '' : 's'} for ${result.classId} / flight ${result.flightId}).`,
-    })
+    state.activeTask = null
+    state.taskRecord = null
+    state.menuOpen = false
+    state.step = 'schedule'
+    state.statusMessage = `Backup saved: ${result.filename} (${result.taskCount} task${result.taskCount === 1 ? '' : 's'} for ${result.classId} / flight ${result.flightId}).`
+    await preloadFlightRecords()
+    render()
   } catch (err) {
     setState({ statusMessage: err.message || 'Could not create backup.' })
   }
