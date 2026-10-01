@@ -186,6 +186,74 @@ function resourcesBackLabel() {
   return 'Back'
 }
 
+function canGoBack(step = state.step) {
+  if (step === 'upload' || step === 'lock') return false
+  return true
+}
+
+async function goBack() {
+  const step = state.step
+  state.menuOpen = false
+
+  if (step === 'resources-view') {
+    setState({ step: 'resources-list', resourceCode: null, menuOpen: false })
+    return
+  }
+  if (step === 'resources-list') {
+    closeResources()
+    return
+  }
+  if (step === 'task') {
+    state.activeTask = null
+    state.taskRecord = null
+    state.step = 'schedule'
+    await preloadFlightRecords()
+    render()
+    return
+  }
+  if (step === 'schedule') {
+    setState({
+      step: 'flight',
+      flightId: null,
+      activeTask: null,
+      menuOpen: false,
+      taskRecord: null,
+    })
+    return
+  }
+  if (step === 'flight') {
+    setState({
+      step: 'squadron',
+      squadronId: null,
+      flightId: null,
+      activeTask: null,
+      menuOpen: false,
+      taskRecord: null,
+    })
+    return
+  }
+  if (step === 'squadron') {
+    setState({
+      step: 'class-profile',
+      squadronId: null,
+      flightId: null,
+      activeTask: null,
+      menuOpen: false,
+    })
+    return
+  }
+  if (step === 'class-profile') {
+    setState({
+      step: 'upload',
+      squadronId: null,
+      flightId: null,
+      activeTask: null,
+      menuOpen: false,
+      error: '',
+    })
+  }
+}
+
 function resetToUpload() {
   setState({
     step: 'upload',
@@ -338,12 +406,15 @@ function topBar(extraActions = '') {
   const classChip = state.classId
     ? `<span class="file-chip" title="Class profile">${escapeHtml(state.classId)}</span>`
     : ''
+  const backBtn = canGoBack()
+    ? `<button type="button" class="btn btn-back" data-action="go-back" aria-label="Go back to previous screen">Back</button>`
+    : ''
   return `
     <header class="topbar">
       <div class="brand-mark">
         <span class="eyebrow">Squadron Officer School</span>
       </div>
-      <div class="nav-actions">${classChip}${extraActions}</div>
+      <div class="nav-actions">${backBtn}${classChip}${extraActions}</div>
     </header>
   `
 }
@@ -427,7 +498,7 @@ function renderUpload() {
   const classReady = Boolean(currentClass)
   return `
     <div class="shell">
-      ${topBar(classReady ? `<span class="file-chip">Class ${escapeHtml(currentClass)}</span>` : '')}
+      ${topBar()}
       <section class="hero">
         <div class="hero-copy">
           <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">United States Air Force</span>
@@ -486,13 +557,8 @@ function renderUpload() {
 function renderClassProfile() {
   const hasWorkbook = Boolean(state.workbook)
   const actions = hasWorkbook
-    ? `
-    <span class="file-chip" title="${escapeHtml(state.fileName)}">${escapeHtml(state.fileName)}</span>
-    <button type="button" class="btn" data-action="reset">Home</button>
-  `
-    : `
-    <button type="button" class="btn" data-action="reset">Home</button>
-  `
+    ? `<span class="file-chip" title="${escapeHtml(state.fileName)}">${escapeHtml(state.fileName)}</span>`
+    : ''
   const suggested = state.classId || ''
 
   return `
@@ -531,7 +597,6 @@ function renderClassProfile() {
 function renderSquadron() {
   const flights = state.workbook?.flights || []
   const actions = `
-    <button type="button" class="btn" data-action="back-class-profile">Class profile</button>
     <span class="file-chip" title="${escapeHtml(state.fileName)}">${escapeHtml(state.fileName)}</span>
     <button type="button" class="btn" data-action="reset">New upload</button>
   `
@@ -572,7 +637,6 @@ function renderFlight() {
   const sq = selectedSquadron()
   const flights = flightsForSquadron(state.workbook?.flights || [], state.squadronId)
   const actions = `
-    <button type="button" class="btn" data-action="back-squadron">Squadrons</button>
     <button type="button" class="btn" data-action="reset">New upload</button>
   `
 
@@ -644,8 +708,6 @@ function renderSchedule() {
   const sq = selectedSquadron() || squadronForFlightId(state.flightId)
   const flight = selectedFlight()
   const actions = `
-    <button type="button" class="btn" data-action="back-flight">Flights</button>
-    <button type="button" class="btn" data-action="back-squadron">Squadrons</button>
     <button type="button" class="btn" data-action="reset">New upload</button>
   `
 
@@ -733,7 +795,6 @@ function renderTask() {
     timerPaused ||
     record?.durationMs != null
   const actions = `
-    <button type="button" class="btn" data-action="back-schedule">Schedule</button>
     <button type="button" class="btn" data-action="reset">New upload</button>
   `
 
@@ -929,7 +990,7 @@ function renderCommentSection(kind, title, placeholder, comments) {
 function renderResourcesList() {
   const version = String(state.resourceVersion || 'A').toUpperCase()
   const items = notetakersForVersion(version)
-  const actions = `<button type="button" class="btn btn-primary" data-action="close-resources">${escapeHtml(resourcesBackLabel())}</button>`
+  const actions = ''
   const cards = items
     .map(
       (item) => `
@@ -959,10 +1020,7 @@ function renderResourcesView() {
   const note = findNotetaker(state.resourceCode)
   if (!note) return renderResourcesList()
   const backLabel = resourcesBackLabel()
-  const actions = `
-    <button type="button" class="btn btn-primary" data-action="close-resources">${escapeHtml(backLabel)}</button>
-    <button type="button" class="btn" data-action="back-resources-list">All tasks</button>
-  `
+  const actions = ''
   return `
     <div class="shell">
       ${topBar(actions)}
@@ -1543,52 +1601,13 @@ function render() {
   app.querySelectorAll('[data-action="reset"]').forEach((el) => {
     el.addEventListener('click', resetToUpload)
   })
+  app.querySelectorAll('[data-action="go-back"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      void goBack()
+    })
+  })
   app.querySelectorAll('[data-action="start-new-class"]').forEach((el) => {
     el.addEventListener('click', startNewClass)
-  })
-  app.querySelectorAll('[data-action="back-squadron"]').forEach((el) => {
-    el.addEventListener('click', () =>
-      setState({
-        step: 'squadron',
-        squadronId: null,
-        flightId: null,
-        activeTask: null,
-        menuOpen: false,
-        taskRecord: null,
-      }),
-    )
-  })
-  app.querySelectorAll('[data-action="back-class-profile"]').forEach((el) => {
-    el.addEventListener('click', () =>
-      setState({
-        step: 'class-profile',
-        squadronId: null,
-        flightId: null,
-        activeTask: null,
-        menuOpen: false,
-      }),
-    )
-  })
-  app.querySelectorAll('[data-action="back-flight"]').forEach((el) => {
-    el.addEventListener('click', () =>
-      setState({
-        step: 'flight',
-        flightId: null,
-        activeTask: null,
-        menuOpen: false,
-        taskRecord: null,
-      }),
-    )
-  })
-  app.querySelectorAll('[data-action="back-schedule"]').forEach((el) => {
-    el.addEventListener('click', async () => {
-      state.activeTask = null
-      state.taskRecord = null
-      state.menuOpen = false
-      state.step = 'schedule'
-      await preloadFlightRecords()
-      render()
-    })
   })
   app.querySelectorAll('[data-action="download-flight-report"]').forEach((el) => {
     el.addEventListener('click', () => downloadCurrentFlightReport())

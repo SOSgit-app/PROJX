@@ -128,6 +128,19 @@ body::before {
   min-width: 0;
 }
 
+.btn-back {
+  border-color: rgba(197, 179, 88, 0.45);
+  background: rgba(12, 48, 96, 0.55);
+  color: var(--af-gold-bright);
+  letter-spacing: 0.12em;
+}
+
+.btn-back:hover,
+.btn-back:active {
+  border-color: var(--af-gold-bright);
+  background: rgba(20, 70, 130, 0.85);
+}
+
 .btn {
   appearance: none;
   border: 1px solid rgba(200, 208, 220, 0.35);
