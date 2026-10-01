@@ -949,6 +949,11 @@ body::before {
   -webkit-tap-highlight-color: transparent;
 }
 
+.menu-toggle.is-open {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .menu-toggle span {
   display: block;
   width: 18px;
@@ -1011,12 +1016,56 @@ body::before {
   transform: translateX(0);
 }
 
+.side-menu-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.side-menu-title-block {
+  min-width: 0;
+  flex: 1;
+}
+
 .side-menu-head h2 {
   font-family: var(--font-display);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  margin: 0.15rem 0 0.85rem;
+  margin: 0.15rem 0 0;
   font-size: 1.7rem;
+}
+
+.side-menu-x {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(197, 179, 88, 0.4);
+  background: rgba(255, 255, 255, 0.04);
+  display: grid;
+  place-content: center;
+  gap: 0;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.side-menu-x span {
+  position: absolute;
+  width: 16px;
+  height: 2px;
+  background: var(--af-gold-bright);
+}
+
+.side-menu-x span:first-child {
+  transform: rotate(45deg);
+}
+
+.side-menu-x span:last-child {
+  transform: rotate(-45deg);
 }
 
 .side-menu-kicker {

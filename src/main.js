@@ -337,10 +337,15 @@ function renderSideMenu() {
     <div class="menu-backdrop${open ? ' is-open' : ''}" data-action="close-menu" ${open ? '' : 'hidden'}></div>
     <aside id="side-menu" class="side-menu${open ? ' is-open' : ''}" aria-hidden="${open ? 'false' : 'true'}">
       <div class="side-menu-head">
-        <p class="side-menu-kicker">Instructor tools</p>
-        <h2>Menu</h2>
-        <button type="button" class="btn side-menu-close" data-action="close-menu">Close</button>
+        <div class="side-menu-title-block">
+          <p class="side-menu-kicker">Instructor tools</p>
+          <h2>Menu</h2>
+        </div>
+        <button type="button" class="side-menu-x" data-action="close-menu" aria-label="Close menu">
+          <span></span><span></span>
+        </button>
       </div>
+      <button type="button" class="btn side-menu-close" data-action="close-menu">Close</button>
       <nav class="side-menu-nav" aria-label="Resources">
         <p class="side-menu-section">Class profile</p>
         <button type="button" class="side-menu-link" data-action="set-class">
