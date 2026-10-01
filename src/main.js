@@ -162,13 +162,26 @@ function closeResources() {
   const back =
     state.returnStep && !isResourceStep(state.returnStep)
       ? state.returnStep
-      : 'upload'
+      : state.activeTask
+        ? 'task'
+        : state.flightId
+          ? 'schedule'
+          : 'upload'
   setState({
     step: back,
     resourceVersion: null,
     resourceCode: null,
     menuOpen: false,
   })
+  if (back === 'task' || back === 'schedule') {
+    void bootstrapStepData()
+  }
+}
+
+function resourcesBackLabel() {
+  if (state.returnStep === 'task' || state.activeTask) return 'Back to scoring'
+  if (state.returnStep === 'schedule' || state.flightId) return 'Back to schedule'
+  return 'Back'
 }
 
 function resetToUpload() {
@@ -832,7 +845,7 @@ function renderTask() {
 function renderResourcesList() {
   const version = String(state.resourceVersion || 'A').toUpperCase()
   const items = notetakersForVersion(version)
-  const actions = `<button type="button" class="btn" data-action="close-resources">Back</button>`
+  const actions = `<button type="button" class="btn btn-primary" data-action="close-resources">${escapeHtml(resourcesBackLabel())}</button>`
   const cards = items
     .map(
       (item) => `
@@ -861,9 +874,10 @@ function renderResourcesList() {
 function renderResourcesView() {
   const note = findNotetaker(state.resourceCode)
   if (!note) return renderResourcesList()
+  const backLabel = resourcesBackLabel()
   const actions = `
-    <button type="button" class="btn" data-action="back-resources-list">Task list</button>
-    <button type="button" class="btn" data-action="close-resources">Exit resources</button>
+    <button type="button" class="btn btn-primary" data-action="close-resources">${escapeHtml(backLabel)}</button>
+    <button type="button" class="btn" data-action="back-resources-list">All tasks</button>
   `
   return `
     <div class="shell">
@@ -875,6 +889,9 @@ function renderResourcesView() {
       <figure class="resource-viewer">
         <img src="${asset(note.file)}" alt="${escapeHtml(note.code)} ${escapeHtml(note.title)}" />
       </figure>
+      <div class="resource-view-actions">
+        <button type="button" class="btn btn-primary btn-back-scoring" data-action="close-resources">${escapeHtml(backLabel)}</button>
+      </div>
     </div>
   `
 }

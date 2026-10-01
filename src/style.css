@@ -1423,6 +1423,15 @@ body::before {
   background: #000;
 }
 
+.resource-view-actions {
+  margin-top: 1rem;
+}
+
+.btn-back-scoring {
+  width: 100%;
+  min-height: 48px;
+}
+
 .file-chip {
   display: inline-flex;
   align-items: center;
