@@ -216,6 +216,45 @@ body::before {
   font-size: 0.78rem;
 }
 
+.hero-actions {
+  margin-top: 1.35rem;
+  display: grid;
+  gap: 0.65rem;
+  justify-items: start;
+}
+
+.hero-start-btn {
+  min-height: 52px;
+  padding: 0.8rem 1.35rem;
+  font-size: 1.1rem;
+}
+
+.hero-restart-btn {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.hero-current-class {
+  margin: 0;
+  color: var(--af-muted);
+  font-size: 0.92rem;
+}
+
+.hero-current-class strong {
+  color: var(--af-gold-bright);
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+}
+
+.upload-panel-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  color: var(--af-muted);
+}
+
 .upload-panel {
   background: var(--surface);
   border: 1px solid var(--line);

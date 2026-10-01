@@ -246,19 +246,20 @@ async function handleFile(file) {
     const buffer = await file.arrayBuffer()
     const workbook = parseProjectXWorkbook(buffer)
     workbook.fileLabel = file.name
+    const classReady = Boolean(state.classId || getClassId())
     setState({
       workbook,
       fileName: file.name,
       error: '',
-      step: 'class-profile',
+      step: classReady ? 'squadron' : 'class-profile',
       squadronId: null,
       flightId: null,
       activeTask: null,
       menuOpen: false,
       resourceVersion: null,
       resourceCode: null,
-      returnStep: 'class-profile',
-      classId: getClassId(),
+      returnStep: classReady ? 'squadron' : 'class-profile',
+      classId: getClassId() || state.classId,
       penaltiesOpen: false,
       taskRecord: null,
       recordCache: {},
@@ -417,21 +418,37 @@ function renderLock() {
 }
 
 function renderUpload() {
+  const currentClass = state.classId || getClassId()
+  const classReady = Boolean(currentClass)
   return `
     <div class="shell">
-      ${topBar('')}
+      ${topBar(classReady ? `<span class="file-chip">Class ${escapeHtml(currentClass)}</span>` : '')}
       <section class="hero">
         <div class="hero-copy">
           <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">United States Air Force</span>
           <h1>Project X</h1>
-          <p class="lede">Upload the SOS flight matrix, grade Pass/Fail, log task penalties and comments into a class profile folder (example: 26G / flight / task).</p>
+          <p class="lede">${
+            classReady
+              ? `Class <strong>${escapeHtml(currentClass)}</strong> is ready. Upload the SOS flight matrix, then select squadron and flight.`
+              : 'Start a new class session, upload the SOS flight matrix, then select the flight you will instruct.'
+          }</p>
           <div class="hero-meta">
             <span>Phase I · Day 1</span>
             <span>Phase II · Day 2</span>
             <span>Instructor View</span>
           </div>
+          ${
+            classReady
+              ? ''
+              : `<div class="hero-actions">
+            <button type="button" class="btn btn-primary hero-start-btn" data-action="start-new-class">
+              Start new class
+            </button>
+          </div>`
+          }
         </div>
         <div class="upload-panel">
+          <h2 class="upload-panel-title">${classReady ? 'Upload Data Entry Matrix' : 'Or upload matrix first'}</h2>
           <div
             class="upload-zone"
             id="upload-zone"
@@ -439,33 +456,47 @@ function renderUpload() {
             tabindex="0"
             aria-label="Upload Project X Excel workbook"
           >
-            <h2>Upload Data Entry Matrix</h2>
+            <h2>${classReady ? `Upload for ${escapeHtml(currentClass)}` : 'Upload Data Entry Matrix'}</h2>
             <p class="upload-hint-desktop">Drop the SOS .xlsx here, or tap to browse</p>
             <p class="upload-hint-mobile">Tap to choose the SOS .xlsx from your device</p>
             <input id="file-input" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" />
           </div>
+          ${
+            classReady
+              ? `<button type="button" class="btn hero-restart-btn" data-action="start-new-class">Start a different class</button>`
+              : ''
+          }
           ${state.error ? `<p class="error" role="alert">${escapeHtml(state.error)}</p>` : ''}
         </div>
       </section>
-      <p class="footer-note">Reads the “Data Entry Matrix” sheet · After upload you’ll set the class profile, then select squadron and flight</p>
+      <p class="footer-note">${
+        classReady
+          ? 'Next: choose squadron, then the flight for this class session'
+          : 'Recommended: Start new class → name the class → upload matrix → pick squadron and flight'
+      }</p>
     </div>
   `
 }
 
 function renderClassProfile() {
-  const actions = `
+  const hasWorkbook = Boolean(state.workbook)
+  const actions = hasWorkbook
+    ? `
     <span class="file-chip" title="${escapeHtml(state.fileName)}">${escapeHtml(state.fileName)}</span>
-    <button type="button" class="btn" data-action="reset">New upload</button>
+    <button type="button" class="btn" data-action="reset">Home</button>
   `
-  const suggested = state.classId || '26G'
+    : `
+    <button type="button" class="btn" data-action="reset">Home</button>
+  `
+  const suggested = state.classId || ''
 
   return `
     <div class="shell">
       ${topBar(actions)}
       <div class="section-head">
-        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Step 2</span>
-        <h1>Set class profile</h1>
-        <p>Name the class folder used to store flight and task results (example: 26G). Data saves as class / flight / task.</p>
+        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">New class session · Step 1</span>
+        <h1>Identify class</h1>
+        <p>Enter the class name for this session (example: 26G). You’ll pick the flight after the matrix is uploaded.</p>
       </div>
       <form id="class-profile-form" class="class-profile-panel" autocomplete="off">
         <label class="lock-label" for="class-id-input">Class name</label>
@@ -480,9 +511,11 @@ function renderClassProfile() {
           maxlength="32"
           autofocus
         />
-        <p class="class-profile-hint">Example path: <strong>${escapeHtml(suggested || '26G')}</strong> / B21 / 4A /</p>
+        <p class="class-profile-hint">Example path: <strong>${escapeHtml(suggested || '26G')}</strong> / {flight} / {task} /</p>
         ${state.error ? `<p class="error" role="alert">${escapeHtml(state.error)}</p>` : ''}
-        <button type="submit" class="btn btn-primary lock-submit">Continue to squadrons</button>
+        <button type="submit" class="btn btn-primary lock-submit">
+          ${hasWorkbook ? 'Continue to squadrons' : 'Continue to upload'}
+        </button>
       </form>
     </div>
   `
@@ -519,9 +552,9 @@ function renderSquadron() {
     <div class="shell">
       ${topBar(actions)}
       <div class="section-head">
-        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Step 3</span>
+        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Class ${escapeHtml(state.classId || '')} · Step 3</span>
         <h1>Select your squadron</h1>
-        <p>Choose the student squadron you are instructing. Only squadrons present in the uploaded matrix are selectable.</p>
+        <p>Choose the student squadron you are instructing. Next you’ll pick the flight for this class session.</p>
       </div>
       <div class="squadron-grid">${cards}</div>
     </div>
@@ -552,7 +585,7 @@ function renderFlight() {
       <div class="section-head">
         <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">${escapeHtml(sq?.unit || '')}</span>
         <h1>${escapeHtml(sq?.name || '')} flights</h1>
-        <p>Select the flight you will instruct. Task data saves under ${escapeHtml(state.classId || '{class}')} / flight / task.</p>
+        <p>Select the flight for class <strong>${escapeHtml(state.classId || '{class}')}</strong>. Task data saves under ${escapeHtml(state.classId || '{class}')} / flight / task.</p>
       </div>
       <div class="flight-grid">${options || '<p class="empty-phase">No flights for this squadron in the uploaded file.</p>'}</div>
     </div>
@@ -1071,6 +1104,28 @@ async function bootstrapStepData() {
   }
 }
 
+function startNewClass() {
+  setState({
+    step: 'class-profile',
+    workbook: null,
+    fileName: '',
+    squadronId: null,
+    flightId: null,
+    activeTask: null,
+    menuOpen: false,
+    resourceVersion: null,
+    resourceCode: null,
+    returnStep: 'upload',
+    classId: '',
+    penaltiesOpen: false,
+    taskRecord: null,
+    recordCache: {},
+    folderBrowse: null,
+    statusMessage: '',
+    error: '',
+  })
+}
+
 function bindClassProfile() {
   const form = app.querySelector('#class-profile-form')
   const input = app.querySelector('#class-id-input')
@@ -1083,14 +1138,18 @@ function bindClassProfile() {
       return
     }
     const classId = setClassId(value)
+    const nextStep = state.workbook ? 'squadron' : 'upload'
     setState({
       classId,
       error: '',
-      step: 'squadron',
-      returnStep: 'squadron',
+      step: nextStep,
+      returnStep: nextStep,
+      squadronId: null,
+      flightId: null,
+      activeTask: null,
       recordCache: {},
       taskRecord: null,
-      statusMessage: '',
+      statusMessage: `Class session ${classId} ready`,
     })
   })
   input?.addEventListener('input', () => {
@@ -1146,6 +1205,9 @@ function render() {
 
   app.querySelectorAll('[data-action="reset"]').forEach((el) => {
     el.addEventListener('click', resetToUpload)
+  })
+  app.querySelectorAll('[data-action="start-new-class"]').forEach((el) => {
+    el.addEventListener('click', startNewClass)
   })
   app.querySelectorAll('[data-action="back-squadron"]').forEach((el) => {
     el.addEventListener('click', () =>
