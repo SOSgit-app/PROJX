@@ -415,6 +415,16 @@ export async function pauseTaskTimer(classId, flightId, taskCode) {
   })
 }
 
+/** Reset elapsed time and start a fresh run. */
+export async function restartTaskTimer(classId, flightId, taskCode) {
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    rec.timerAccumulatedMs = 0
+    rec.durationMs = null
+    rec.timerStartedAt = new Date().toISOString()
+    return rec
+  })
+}
+
 export async function setRubricMark(classId, flightId, taskCode, criterion, level) {
   return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
     const rubric = normalizeRubric(rec.rubric)

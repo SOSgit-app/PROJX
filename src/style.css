@@ -757,10 +757,20 @@ body::before {
   margin-bottom: 0;
 }
 
+.timer-actions .btn-timer:first-child {
+  grid-column: 1 / -1;
+}
+
 .btn-timer-pause {
   border-color: rgba(180, 140, 60, 0.65);
   background: rgba(40, 32, 8, 0.55);
   color: #f0d878;
+}
+
+.btn-timer-restart {
+  border-color: rgba(140, 170, 210, 0.55);
+  background: rgba(12, 36, 72, 0.7);
+  color: #d8e6f8;
 }
 
 .btn-timer:hover:not(:disabled),
@@ -773,6 +783,17 @@ body::before {
 .btn-timer-pause:active:not(:disabled) {
   border-color: #f0d878;
   background: rgba(70, 55, 12, 0.75);
+}
+
+.btn-timer-restart:hover:not(:disabled),
+.btn-timer-restart:active:not(:disabled) {
+  border-color: #d8e6f8;
+  background: rgba(24, 56, 104, 0.9);
+}
+
+.timer-actions .btn-timer:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .btn-timer:disabled {

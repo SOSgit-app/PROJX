@@ -30,6 +30,7 @@ import {
   pauseTaskTimer,
   removeTaskComment,
   removeTaskPenalty,
+  restartTaskTimer,
   restoreFlightBackupFromFile,
   setClassId,
   setRubricMark,
@@ -720,6 +721,8 @@ function renderTask() {
     typeof record?.timerAccumulatedMs === 'number' &&
     record.timerAccumulatedMs > 0
   const elapsedMs = getTaskElapsedMs(record)
+  const canRestart =
+    timerRunning || timerPaused || (typeof record?.durationMs === 'number' && record.durationMs > 0)
   const canFinalize =
     Boolean(result) ||
     recordedPenalties.length > 0 ||
@@ -752,18 +755,13 @@ function renderTask() {
           <p class="timer-display" id="task-timer-display">${escapeHtml(formatDuration(elapsedMs))}</p>
           <div class="timer-actions">
             <button type="button" class="btn btn-timer" data-action="start-timer" ${timerRunning ? 'disabled' : ''}>
-              ${
-                timerRunning
-                  ? 'Timer running…'
-                  : timerPaused
-                    ? 'Resume timer'
-                    : record?.durationMs != null
-                      ? 'Restart timer'
-                      : 'Start timer'
-              }
+              ${timerPaused ? 'Resume timer' : 'Start timer'}
             </button>
             <button type="button" class="btn btn-timer btn-timer-pause" data-action="pause-timer" ${timerRunning ? '' : 'disabled'}>
-              Pause
+              Pause timer
+            </button>
+            <button type="button" class="btn btn-timer btn-timer-restart" data-action="restart-timer" ${canRestart ? '' : 'disabled'}>
+              Restart timer
             </button>
           </div>
 
@@ -1140,6 +1138,23 @@ async function pauseActiveTimer() {
   render()
 }
 
+async function restartActiveTimer() {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile before restarting the timer.' })
+    return
+  }
+  const record = await restartTaskTimer(classId, state.flightId, task.task)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  state.statusMessage = `Timer restarted for ${task.task}`
+  render()
+  startTimerTick()
+}
+
 let timerTickId = null
 
 function stopTimerTick() {
@@ -1324,6 +1339,9 @@ function bindTaskActions() {
   })
   app.querySelectorAll('[data-action="pause-timer"]').forEach((el) => {
     el.addEventListener('click', () => pauseActiveTimer())
+  })
+  app.querySelectorAll('[data-action="restart-timer"]').forEach((el) => {
+    el.addEventListener('click', () => restartActiveTimer())
   })
   app.querySelectorAll('[data-record-penalty]').forEach((el) => {
     el.addEventListener('click', () => savePenalty(el.dataset.recordPenalty))
