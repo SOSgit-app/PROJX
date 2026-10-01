@@ -1125,13 +1125,13 @@ async function savePenalty(index) {
   const options = penaltiesForTask(task.task)
   const penalty = options[Number(index)]
   if (!penalty) return
-  const text = typeof penalty === 'string' ? penalty : penalty.label
+  const text = typeof penalty === 'string' ? penalty : penalty.detail || penalty.label
   const record = await addTaskPenalty(classId, state.flightId, task.task, text)
   state.taskRecord = record
   state.recordCache[cacheKey(task.task)] = record
   state.classId = classId
   state.penaltiesOpen = false
-  state.statusMessage = `Penalty recorded: ${text}`
+  state.statusMessage = `Penalty recorded for ${task.task}`
   render()
 }
 
