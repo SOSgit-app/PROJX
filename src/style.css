@@ -86,14 +86,14 @@ body::before {
 }
 
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem 1rem;
   padding: 0.75rem 0 1rem;
-  padding-left: calc(3.35rem + env(safe-area-inset-left));
   border-bottom: 1px solid rgba(197, 179, 88, 0.25);
   margin-bottom: 1.25rem;
+  position: relative;
 }
 
 .brand-mark {
@@ -101,33 +101,30 @@ body::before {
   flex-direction: column;
   gap: 0.1rem;
   min-width: 0;
+  grid-column: 1 / -1;
+  justify-self: center;
+  text-align: center;
+  pointer-events: none;
 }
 
 .brand-mark .eyebrow {
   font-family: var(--font-display);
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  font-size: 0.72rem;
+  font-size: clamp(0.78rem, 3.2vw, 0.95rem);
   color: var(--af-gold);
   font-weight: 600;
-}
-
-.brand-mark .title {
-  font-family: var(--font-display);
-  font-size: clamp(1.45rem, 4vw, 2.2rem);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  text-transform: uppercase;
-  margin: 0;
 }
 
 .nav-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  justify-content: flex-end;
   align-items: center;
+  justify-content: flex-end;
+  grid-column: 2;
+  grid-row: 1;
+  z-index: 1;
   min-width: 0;
 }
 
@@ -1554,22 +1551,27 @@ body::before {
   }
 
   .topbar {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: 1fr;
     gap: 0.75rem;
-    padding-left: calc(3.5rem + env(safe-area-inset-left));
-    padding-top: 0.35rem;
-    min-height: 3.1rem;
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0.55rem;
+  }
+
+  .brand-mark {
+    padding: 0 3.25rem;
   }
 
   .brand-mark .eyebrow {
-    font-size: 0.68rem;
+    font-size: clamp(0.72rem, 3.4vw, 0.88rem);
     letter-spacing: 0.14em;
   }
 
   .nav-actions {
     width: 100%;
     justify-content: stretch;
+    grid-column: 1;
+    grid-row: 2;
   }
 
   .nav-actions .file-chip {

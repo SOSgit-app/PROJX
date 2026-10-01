@@ -340,7 +340,6 @@ function topBar(extraActions = '') {
     <header class="topbar">
       <div class="brand-mark">
         <span class="eyebrow">Squadron Officer School</span>
-        <p class="title">Project X</p>
       </div>
       <div class="nav-actions">${classChip}${extraActions}</div>
     </header>
