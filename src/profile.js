@@ -418,6 +418,13 @@ async function listRecordsForClassFlight(classId, flightId) {
   return all.filter((r) => String(r?.flightId || '').toUpperCase() === flightId)
 }
 
+export async function listFlightRecords(classId, flightId) {
+  const cls = String(classId || '').trim().toUpperCase()
+  const flt = String(flightId || '').trim().toUpperCase()
+  if (!cls || !flt) return []
+  return listRecordsForClassFlight(cls, flt)
+}
+
 /** Minimal ZIP (store / no compression) for small JSON exports. */
 function buildZipStore(files) {
   const localParts = []

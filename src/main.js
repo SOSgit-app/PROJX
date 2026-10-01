@@ -7,6 +7,7 @@ import {
 } from './squadrons.js'
 import { findNotetaker, notetakersForVersion } from './notetakers.js'
 import { penaltiesForTask } from './penalties.js'
+import { downloadFlightReport } from './report.js'
 import {
   addTaskComment,
   addTaskPenalty,
@@ -669,6 +670,9 @@ function renderSchedule() {
           <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">${escapeHtml(sq.unit)} · ${escapeHtml(sq.motto)}</span>
           <h1>Flight ${escapeHtml(flight.displayId)}</h1>
           <p class="sub">Tap a task to grade, log penalties, and add comments. Progress auto-saves on this device for the full session — use Finalize on each task for a downloadable backup.</p>
+          <button type="button" class="btn btn-primary btn-flight-report" data-action="download-flight-report">
+            Download Flight Report
+          </button>
         </div>
       </div>
 
@@ -693,6 +697,7 @@ function renderSchedule() {
         </header>
         ${renderTaskRail(flight.phase2, 'phase2')}
       </section>
+      ${state.statusMessage && state.step === 'schedule' ? `<p class="status-message schedule-status">${escapeHtml(state.statusMessage)}</p>` : ''}
     </div>
   `
 }
@@ -1242,6 +1247,36 @@ async function finalizeTask() {
   }
 }
 
+async function downloadCurrentFlightReport() {
+  const flight = selectedFlight()
+  const sq = selectedSquadron() || squadronForFlightId(state.flightId)
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile before downloading a report.' })
+    return
+  }
+  if (!flight) {
+    setState({ statusMessage: 'Select a flight first.' })
+    return
+  }
+  try {
+    const result = await downloadFlightReport({
+      classId,
+      flightId: flight.id,
+      displayId: flight.displayId || flight.id,
+      squadronName: sq?.name || '',
+      squadronUnit: sq?.unit || '',
+      phase1: flight.phase1 || [],
+      phase2: flight.phase2 || [],
+    })
+    setState({
+      statusMessage: `Downloaded ${result.filename} · ${result.pass} pass / ${result.fail} fail · ${result.penaltyCount} penalties · ${result.commentCount} comments`,
+    })
+  } catch (err) {
+    setState({ statusMessage: err.message || 'Could not download flight report.' })
+  }
+}
+
 async function bootstrapStepData() {
   if (state.step === 'schedule') {
     await preloadFlightRecords()
@@ -1403,6 +1438,9 @@ function render() {
       await preloadFlightRecords()
       render()
     })
+  })
+  app.querySelectorAll('[data-action="download-flight-report"]').forEach((el) => {
+    el.addEventListener('click', () => downloadCurrentFlightReport())
   })
   app.querySelectorAll('[data-squadron]').forEach((el) => {
     el.addEventListener('click', () => {

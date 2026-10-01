@@ -496,6 +496,15 @@ body::before {
   line-height: 1.35;
 }
 
+.btn-flight-report {
+  margin-top: 0.95rem;
+  min-height: 48px;
+}
+
+.schedule-status {
+  margin-top: 1rem;
+}
+
 .phase-block {
   margin-bottom: 1.15rem;
   background: var(--surface);
