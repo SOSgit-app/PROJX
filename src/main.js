@@ -76,7 +76,6 @@ const state = {
   returnStep: 'upload',
   classId: getClassId(),
   folderLinked: getFolderLinked(),
-  penaltiesOpen: false,
   taskRecord: null,
   recordCache: {},
   statusMessage: '',
@@ -156,7 +155,6 @@ function openResources(version) {
     resourceVersion: version,
     resourceCode: null,
     menuOpen: false,
-    penaltiesOpen: false,
   })
 }
 
@@ -198,7 +196,6 @@ function resetToUpload() {
     resourceVersion: null,
     resourceCode: null,
     returnStep: 'upload',
-    penaltiesOpen: false,
     taskRecord: null,
     recordCache: {},
     statusMessage: '',
@@ -281,7 +278,6 @@ async function handleFile(file) {
       resourceCode: null,
       returnStep: classReady ? 'squadron' : 'class-profile',
       classId: getClassId() || state.classId,
-      penaltiesOpen: false,
       taskRecord: null,
       recordCache: {},
       statusMessage: '',
@@ -789,27 +785,21 @@ function renderTask() {
           <button type="button" class="btn btn-clear" data-grade="clear" ${result ? '' : 'disabled'}>Clear result</button>
 
           <div class="penalty-block">
-            <button type="button" class="btn btn-penalty" data-action="toggle-penalties">
-              ${state.penaltiesOpen ? 'Close penalties' : 'Penalties'}
-            </button>
-            ${
-              state.penaltiesOpen
-                ? `<div class="penalty-list" role="list">
-                    ${
-                      penaltyOptions.length
-                        ? penaltyOptions
-                            .map(
-                              (p, i) => `
-                      <button type="button" class="penalty-option tone-${escapeHtml(p.tone || 'other')}" data-record-penalty="${i}" role="listitem" title="${escapeHtml(p.detail || p.label)}">
-                        <span class="penalty-label">${escapeHtml(p.label)}</span>
-                      </button>`,
-                            )
-                            .join('')
-                        : '<p class="empty-phase">No penalty list found for this task code.</p>'
-                    }
-                  </div>`
-                : ''
-            }
+            <p class="grade-label">Penalties</p>
+            <div class="penalty-list" role="list">
+              ${
+                penaltyOptions.length
+                  ? penaltyOptions
+                      .map(
+                        (p, i) => `
+                <button type="button" class="penalty-option tone-${escapeHtml(p.tone || 'other')}" data-record-penalty="${i}" role="listitem" title="${escapeHtml(p.detail || p.label)}">
+                  <span class="penalty-label">${escapeHtml(p.label)}</span>
+                </button>`,
+                      )
+                      .join('')
+                  : '<p class="empty-phase">No penalty list found for this task code.</p>'
+              }
+            </div>
             ${
               recordedPenalties.length
                 ? `<ul class="recorded-list">
@@ -1174,7 +1164,6 @@ async function saveGrade(action) {
   state.taskRecord = record
   state.recordCache[cacheKey(task.task)] = record
   state.classId = classId
-  state.penaltiesOpen = false
   state.statusMessage = result
     ? `Saved ${result.toUpperCase()} to ${profileFolderHint(classId, state.flightId, task.task)}`
     : `Cleared result for ${task.task}`
@@ -1197,7 +1186,6 @@ async function savePenalty(index) {
   state.taskRecord = record
   state.recordCache[cacheKey(task.task)] = record
   state.classId = classId
-  state.penaltiesOpen = false
   state.statusMessage = `Penalty recorded for ${task.task}`
   render()
 }
@@ -1292,11 +1280,6 @@ function bindTaskActions() {
   app.querySelectorAll('[data-grade]').forEach((el) => {
     el.addEventListener('click', () => saveGrade(el.dataset.grade))
   })
-  app.querySelectorAll('[data-action="toggle-penalties"]').forEach((el) => {
-    el.addEventListener('click', () =>
-      setState({ penaltiesOpen: !state.penaltiesOpen, statusMessage: '' }),
-    )
-  })
   app.querySelectorAll('[data-record-penalty]').forEach((el) => {
     el.addEventListener('click', () => savePenalty(el.dataset.recordPenalty))
   })
@@ -1336,7 +1319,6 @@ async function finalizeTask() {
     const result = await downloadFlightBackup(classId, state.flightId)
     setState({
       statusMessage: `Backup saved: ${result.filename} (${result.taskCount} task${result.taskCount === 1 ? '' : 's'} for ${result.classId} / flight ${result.flightId}).`,
-      penaltiesOpen: false,
     })
   } catch (err) {
     setState({ statusMessage: err.message || 'Could not create backup.' })
@@ -1396,7 +1378,6 @@ function startNewClass() {
     resourceCode: null,
     returnStep: 'upload',
     classId: '',
-    penaltiesOpen: false,
     taskRecord: null,
     recordCache: {},
     folderBrowse: null,
@@ -1496,7 +1477,6 @@ function render() {
         flightId: null,
         activeTask: null,
         menuOpen: false,
-        penaltiesOpen: false,
         taskRecord: null,
       }),
     )
@@ -1519,7 +1499,6 @@ function render() {
         flightId: null,
         activeTask: null,
         menuOpen: false,
-        penaltiesOpen: false,
         taskRecord: null,
       }),
     )
@@ -1527,7 +1506,6 @@ function render() {
   app.querySelectorAll('[data-action="back-schedule"]').forEach((el) => {
     el.addEventListener('click', async () => {
       state.activeTask = null
-      state.penaltiesOpen = false
       state.taskRecord = null
       state.menuOpen = false
       state.step = 'schedule'
@@ -1555,7 +1533,6 @@ function render() {
       state.flightId = el.dataset.flight
       state.activeTask = null
       state.menuOpen = false
-      state.penaltiesOpen = false
       state.step = 'schedule'
       requireClassId()
       state.classId = getClassId()
@@ -1571,7 +1548,6 @@ function render() {
       state.step = 'task'
       state.activeTask = { phase, index }
       state.menuOpen = false
-      state.penaltiesOpen = false
       state.statusMessage = ''
       requireClassId()
       state.classId = getClassId()
@@ -1584,9 +1560,6 @@ function render() {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && state.menuOpen) {
     setState({ menuOpen: false })
-  } else if (e.key === 'Escape' && state.penaltiesOpen) {
-    setState({ penaltiesOpen: false })
-  }
 })
 
 render()
