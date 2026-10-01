@@ -20,6 +20,25 @@ import {
   setTaskGrade,
 } from './profile.js'
 
+const AUTH_KEY = 'projx-auth-v1'
+const APP_PASSWORD = 'redpants1950'
+
+function isUnlocked() {
+  try {
+    return sessionStorage.getItem(AUTH_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function unlockSession() {
+  try {
+    sessionStorage.setItem(AUTH_KEY, '1')
+  } catch {
+    /* ignore */
+  }
+}
+
 const APP_STEPS = new Set([
   'upload',
   'squadron',
@@ -31,6 +50,8 @@ const APP_STEPS = new Set([
 ])
 
 const state = {
+  unlocked: isUnlocked(),
+  authError: '',
   step: 'upload',
   workbook: null,
   fileName: '',
@@ -341,6 +362,32 @@ function renderSideMenu() {
         </button>
       </nav>
     </aside>
+  `
+}
+
+function renderLock() {
+  return `
+    <div class="shell lock-shell">
+      <section class="lock-panel">
+        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Squadron Officer School</span>
+        <h1>Project X</h1>
+        <p class="lede">Instructor access required</p>
+        <form id="lock-form" class="lock-form" autocomplete="current-password">
+          <label class="lock-label" for="app-password">Password</label>
+          <input
+            id="app-password"
+            name="password"
+            type="password"
+            class="lock-input"
+            placeholder="Enter password"
+            required
+            autofocus
+          />
+          ${state.authError ? `<p class="error" role="alert">${escapeHtml(state.authError)}</p>` : ''}
+          <button type="submit" class="btn btn-primary lock-submit">Unlock</button>
+        </form>
+      </section>
+    </div>
   `
 }
 
@@ -873,7 +920,33 @@ async function bootstrapStepData() {
   }
 }
 
+function bindLock() {
+  const form = app.querySelector('#lock-form')
+  const input = app.querySelector('#app-password')
+  if (!form) return
+  form.addEventListener('submit', (e) => {
+    e.preventDefault()
+    const value = String(input?.value || '')
+    if (value === APP_PASSWORD) {
+      unlockSession()
+      setState({ unlocked: true, authError: '' })
+      return
+    }
+    setState({ unlocked: false, authError: 'Incorrect password.' })
+    requestAnimationFrame(() => {
+      const next = app.querySelector('#app-password')
+      if (next) next.focus()
+    })
+  })
+}
+
 function render() {
+  if (!state.unlocked) {
+    app.innerHTML = renderLock()
+    bindLock()
+    return
+  }
+
   let html = ''
   if (state.step === 'upload') html = renderUpload()
   else if (state.step === 'squadron') html = renderSquadron()
