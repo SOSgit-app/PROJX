@@ -11,6 +11,8 @@ import {
   addTaskComment,
   addTaskPenalty,
   canUseFolderApi,
+  downloadClassFolderZip,
+  downloadFlightBackup,
   getClassId,
   getFolderLinked,
   getLinkedFolderName,
@@ -18,6 +20,7 @@ import {
   linkProfilesFolder,
   openClassFolder,
   profileFolderHint,
+  restoreFlightBackupFromFile,
   setClassId,
   setTaskGrade,
 } from './profile.js'
@@ -370,13 +373,26 @@ function renderSideMenu() {
           }</span>
         </button>
         <button type="button" class="side-menu-link" data-action="open-class-folder" ${canUseFolderApi() ? '' : 'disabled'}>
-          <span class="side-menu-link-title">Open class folder</span>
+          <span class="side-menu-link-title">Browse class folder</span>
           <span class="side-menu-link-meta">${
             state.classId
-              ? `Open ${escapeHtml(state.classId)}${state.flightId ? ` / ${escapeHtml(state.flightId)}` : ''}`
-              : 'Set a class first, then open its folder'
+              ? `View ${escapeHtml(state.classId)} in the app`
+              : 'Set a class first'
           }</span>
         </button>
+        <button type="button" class="side-menu-link" data-action="download-class-folder">
+          <span class="side-menu-link-title">Download class ZIP</span>
+          <span class="side-menu-link-meta">${
+            state.classId
+              ? `All flights for ${escapeHtml(state.classId)}`
+              : 'Set a class first'
+          }</span>
+        </button>
+        <button type="button" class="side-menu-link" data-action="restore-backup">
+          <span class="side-menu-link-title">Restore backup</span>
+          <span class="side-menu-link-meta">Reload a Finalize .json if data is lost</span>
+        </button>
+        <input id="restore-backup-input" class="sr-only" type="file" accept="application/json,.json" tabindex="-1" />
         <p class="side-menu-section">TASK Resources</p>
         <button type="button" class="side-menu-link" data-resource-version="A">
           <span class="side-menu-link-title">Version A</span>
@@ -650,7 +666,7 @@ function renderSchedule() {
         <div>
           <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">${escapeHtml(sq.unit)} · ${escapeHtml(sq.motto)}</span>
           <h1>Flight ${escapeHtml(flight.displayId)}</h1>
-          <p class="sub">Tap a task to grade, log penalties, and add comments.</p>
+          <p class="sub">Tap a task to grade, log penalties, and add comments. Progress auto-saves on this device for the full session — use Finalize on each task for a downloadable backup.</p>
         </div>
       </div>
 
@@ -703,6 +719,8 @@ function renderTask() {
   const recordedPenalties = record?.penalties || []
   const comments = record?.comments || []
   const folderPath = profileFolderHint(state.classId, state.flightId, task.task)
+  const canFinalize =
+    Boolean(result) || recordedPenalties.length > 0 || comments.length > 0
   const actions = `
     <button type="button" class="btn" data-action="back-schedule">Schedule</button>
     <button type="button" class="btn" data-action="reset">New upload</button>
@@ -717,7 +735,7 @@ function renderTask() {
           <div>
             <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Flight ${escapeHtml(flight.displayId)} · ${escapeHtml(task.phaseLabel)} · ${escapeHtml(task.dayLabel)}</span>
             <h1>Task ${escapeHtml(task.task)}</h1>
-            <p class="sub">Order ${task.order ?? '—'} · Saves to ${escapeHtml(folderPath)}</p>
+            <p class="sub">Order ${task.order ?? '—'} · Auto-saves to this device · ${escapeHtml(folderPath)}</p>
           </div>
         </div>
 
@@ -742,8 +760,8 @@ function renderTask() {
                         ? penaltyOptions
                             .map(
                               (p, i) => `
-                      <button type="button" class="penalty-option" data-record-penalty="${i}" role="listitem">
-                        ${escapeHtml(p)}
+                      <button type="button" class="penalty-option tone-${escapeHtml(p.tone || 'other')}" data-record-penalty="${i}" role="listitem" title="${escapeHtml(p.detail || p.label)}">
+                        <span class="penalty-label">${escapeHtml(p.label)}</span>
                       </button>`,
                             )
                             .join('')
@@ -787,6 +805,14 @@ function renderTask() {
               ? `<button type="button" class="btn btn-resource" data-open-notetaker="${note.code}">Open TASK Resource</button>`
               : ''
           }
+
+          <div class="finalize-block">
+            <button type="button" class="btn btn-finalize" data-action="finalize-task" ${canFinalize ? '' : 'disabled'}>
+              Finalize &amp; download backup
+            </button>
+            <p class="finalize-hint">Downloads all progress so far for class ${escapeHtml(state.classId || '—')} / flight ${escapeHtml(state.flightId || '—')}. Use Restore backup in the menu if anything is lost.</p>
+          </div>
+
           ${state.statusMessage ? `<p class="status-message">${escapeHtml(state.statusMessage)}</p>` : ''}
         </div>
       </div>
@@ -847,6 +873,7 @@ function renderResourcesView() {
 function renderFolderBrowser() {
   const browse = state.folderBrowse
   const actions = `
+    <button type="button" class="btn" data-action="download-class-folder">Download ZIP</button>
     <button type="button" class="btn" data-action="close-folder-browser">Back</button>
   `
   if (!browse) {
@@ -884,7 +911,8 @@ function renderFolderBrowser() {
       <div class="section-head">
         <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Linked profile folder</span>
         <h1>${escapeHtml(browse.classId)}</h1>
-        <p>Saved on this device at <strong>${escapeHtml(browse.pathLabel)}</strong> inside the folder you linked.</p>
+        <p>On disk under <strong>${escapeHtml(browse.pathLabel)}</strong> in the folder you linked with “Link profile folder.”</p>
+        <p class="folder-browser-note">Websites cannot open File Explorer. Use <strong>Download ZIP</strong> to get a copy you can open on your computer, or open the linked folder yourself in File Explorer.</p>
       </div>
       <div class="folder-browser-panel">
         ${flightBlocks}
@@ -967,7 +995,7 @@ function bindChrome() {
         if (!state.folderLinked) {
           setState({
             menuOpen: false,
-            statusMessage: 'Link a profile folder first, then open the class folder.',
+            statusMessage: 'Link a profile folder first, then browse the class folder.',
           })
           return
         }
@@ -982,11 +1010,62 @@ function bindChrome() {
       } catch (err) {
         setState({
           menuOpen: false,
-          statusMessage: err.message || 'Could not open class folder.',
+          statusMessage: err.message || 'Could not browse class folder.',
         })
       }
     })
   })
+  app.querySelectorAll('[data-action="download-class-folder"]').forEach((el) => {
+    el.addEventListener('click', async () => {
+      try {
+        const classId = state.classId || requireClassId()
+        if (!classId) {
+          setState({ menuOpen: false, statusMessage: 'Set a class profile first.' })
+          return
+        }
+        const result = await downloadClassFolderZip(classId)
+        setState({
+          menuOpen: false,
+          statusMessage: `Downloaded PROJX-${result.classId}.zip — open it from your Downloads folder.`,
+        })
+      } catch (err) {
+        setState({
+          menuOpen: false,
+          statusMessage: err.message || 'Could not download class folder.',
+        })
+      }
+    })
+  })
+  app.querySelectorAll('[data-action="restore-backup"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const input = app.querySelector('#restore-backup-input')
+      if (!input) return
+      input.value = ''
+      input.click()
+    })
+  })
+  const restoreInput = app.querySelector('#restore-backup-input')
+  if (restoreInput) {
+    restoreInput.addEventListener('change', async () => {
+      const file = restoreInput.files?.[0]
+      if (!file) return
+      try {
+        const result = await restoreFlightBackupFromFile(file)
+        state.classId = result.classId
+        state.recordCache = {}
+        setState({
+          menuOpen: false,
+          statusMessage: `Restored ${result.taskCount} task(s) for ${result.classId} / flight ${result.flightId}. Open that flight on the schedule to see grades.`,
+        })
+        await bootstrapStepData()
+      } catch (err) {
+        setState({
+          menuOpen: false,
+          statusMessage: err.message || 'Could not restore backup.',
+        })
+      }
+    })
+  }
   app.querySelectorAll('[data-action="close-folder-browser"]').forEach((el) => {
     el.addEventListener('click', () => {
       const back =
@@ -1044,14 +1123,15 @@ async function savePenalty(index) {
     return
   }
   const options = penaltiesForTask(task.task)
-  const text = options[Number(index)]
-  if (!text) return
+  const penalty = options[Number(index)]
+  if (!penalty) return
+  const text = typeof penalty === 'string' ? penalty : penalty.label
   const record = await addTaskPenalty(classId, state.flightId, task.task, text)
   state.taskRecord = record
   state.recordCache[cacheKey(task.task)] = record
   state.classId = classId
   state.penaltiesOpen = false
-  state.statusMessage = `Penalty recorded for ${task.task}`
+  state.statusMessage = `Penalty recorded: ${text}`
   render()
 }
 
@@ -1092,6 +1172,32 @@ function bindTaskActions() {
   app.querySelectorAll('[data-action="submit-comment"]').forEach((el) => {
     el.addEventListener('click', () => saveComment())
   })
+  app.querySelectorAll('[data-action="finalize-task"]').forEach((el) => {
+    el.addEventListener('click', () => finalizeTask())
+  })
+}
+
+async function finalizeTask() {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile before finalizing.' })
+    return
+  }
+  if (!state.flightId) {
+    setState({ statusMessage: 'Select a flight before finalizing.' })
+    return
+  }
+  try {
+    const result = await downloadFlightBackup(classId, state.flightId)
+    setState({
+      statusMessage: `Backup saved: ${result.filename} (${result.taskCount} task${result.taskCount === 1 ? '' : 's'} for ${result.classId} / flight ${result.flightId}).`,
+      penaltiesOpen: false,
+    })
+  } catch (err) {
+    setState({ statusMessage: err.message || 'Could not create backup.' })
+  }
 }
 
 async function bootstrapStepData() {
