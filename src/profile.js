@@ -391,10 +391,6 @@ function triggerDownload(data, filename, mime) {
   URL.revokeObjectURL(url)
 }
 
-function jsonBytes(data) {
-  return textBytes(`${JSON.stringify(data, null, 2)}\n`)
-}
-
 function textBytes(text) {
   return new TextEncoder().encode(text)
 }
