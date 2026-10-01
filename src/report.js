@@ -8,7 +8,7 @@ import {
 
 /**
  * Build and download an organized flight scoring report (.xlsx).
- * Sheets: Summary | Task Scores | Penalties | Student Comments | Operational Comments
+ * Sheets: Summary | Task Scores | Rubric | Penalties | Student Comments | Operational Comments
  */
 export async function downloadFlightReport({
   classId,
@@ -64,6 +64,8 @@ export async function downloadFlightReport({
   let penaltyCount = 0
   let studentCommentCount = 0
   let operationalCommentCount = 0
+  let rubricMarkCount = 0
+  let tasksWithRubric = 0
   let totalDurationMs = 0
   let timedTasks = 0
 
@@ -90,6 +92,9 @@ export async function downloadFlightReport({
       'Operational Comments',
       'Last Updated',
     ],
+  ]
+  const rubricRows = [
+    ['Phase', 'Day', 'Order', 'Task', 'Result', 'Criterion', 'Level', 'Last Updated'],
   ]
   const penaltyRows = [
     ['Phase', 'Day', 'Order', 'Task', 'Result', 'Penalty', 'Recorded At'],
@@ -152,6 +157,13 @@ export async function downloadFlightReport({
     }
 
     const rubric = normalizeRubric(record?.rubric)
+    const rubricMarks = RUBRIC_CRITERIA.map((c) => ({
+      criterion: c.label,
+      levelId: rubric[c.id],
+      level: rubricLevelLabel(rubric[c.id]) || '',
+    })).filter((m) => m.levelId)
+    rubricMarkCount += rubricMarks.length
+    if (rubricMarks.length) tasksWithRubric += 1
 
     scoreRows.push([
       t.phase,
@@ -166,6 +178,19 @@ export async function downloadFlightReport({
       operationalComments.length,
       formatStamp(record?.updatedAt),
     ])
+
+    for (const mark of rubricMarks) {
+      rubricRows.push([
+        t.phase,
+        t.day,
+        t.order ?? '',
+        t.task,
+        resultLabel,
+        mark.criterion,
+        mark.level,
+        formatStamp(record?.updatedAt),
+      ])
+    }
 
     for (const p of penalties) {
       penaltyRows.push([
@@ -204,6 +229,9 @@ export async function downloadFlightReport({
     }
   }
 
+  if (rubricRows.length === 1) {
+    rubricRows.push(['—', '—', '', '', '', 'No rubric marks recorded', '', ''])
+  }
   if (penaltyRows.length === 1) {
     penaltyRows.push(['—', '—', '', '', '', 'No penalties recorded', ''])
   }
@@ -253,11 +281,17 @@ export async function downloadFlightReport({
     ['Penalty entries', penaltyCount],
     ['Student comments', studentCommentCount],
     ['Operational/equipment comments', operationalCommentCount],
+    ['Tasks with rubric marks', tasksWithRubric],
+    ['Rubric marks', rubricMarkCount],
     ['Timed tasks', timedTasks],
     ['Total timed duration', formatDuration(totalDurationMs)],
     [],
     ['Sheets'],
-    ['Task Scores', 'One row per task with result, duration, and counts'],
+    [
+      'Task Scores',
+      'One row per task with result, duration, rubric levels, and counts',
+    ],
+    ['Rubric', 'One row per criterion mark (Communication, Decision-Making, Leadership, Debrief)'],
     ['Penalties', 'One row per recorded penalty'],
     ['Student Comments', 'Student related comments'],
     ['Operational Comments', 'Operational/equipment comments'],
@@ -271,6 +305,10 @@ export async function downloadFlightReport({
   const scores = XLSX.utils.aoa_to_sheet(scoreRows)
   scores['!cols'] = colWidths([10, 8, 8, 10, 12, 10, 14, 16, 12, 12, 10, 16, 18, 22])
   XLSX.utils.book_append_sheet(wb, scores, 'Task Scores')
+
+  const rubricSheet = XLSX.utils.aoa_to_sheet(rubricRows)
+  rubricSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 18, 18, 22])
+  XLSX.utils.book_append_sheet(wb, rubricSheet, 'Rubric')
 
   const penaltiesSheet = XLSX.utils.aoa_to_sheet(penaltyRows)
   penaltiesSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 70, 22])
@@ -307,6 +345,7 @@ export async function downloadFlightReport({
     complete,
     incomplete,
     penaltyCount,
+    rubricMarkCount,
     commentCount: studentCommentCount + operationalCommentCount,
   }
 }
