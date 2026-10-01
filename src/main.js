@@ -1560,6 +1560,7 @@ function render() {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && state.menuOpen) {
     setState({ menuOpen: false })
+  }
 })
 
 render()
