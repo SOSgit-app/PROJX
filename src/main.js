@@ -11,6 +11,8 @@ import {
   addTaskComment,
   addTaskPenalty,
   canUseFolderApi,
+  clearTaskComments,
+  clearTaskPenalties,
   downloadClassFolderZip,
   downloadFlightBackup,
   getClassId,
@@ -778,7 +780,8 @@ function renderTask() {
                         (p) => `<li><strong>Penalty</strong> · ${escapeHtml(p.text)}<span>${escapeHtml(formatWhen(p.recordedAt))}</span></li>`,
                       )
                       .join('')}
-                  </ul>`
+                  </ul>
+                  <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-penalties">Clear penalties</button>`
                 : ''
             }
           </div>
@@ -795,7 +798,8 @@ function renderTask() {
                         (c) => `<li><strong>Comment</strong> · ${escapeHtml(c.text)}<span>${escapeHtml(formatWhen(c.recordedAt))}</span></li>`,
                       )
                       .join('')}
-                  </ul>`
+                  </ul>
+                  <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-comments">Clear comments</button>`
                 : ''
             }
           </div>
@@ -1157,6 +1161,38 @@ async function saveComment() {
   }
 }
 
+async function clearPenalties() {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile first.' })
+    return
+  }
+  const record = await clearTaskPenalties(classId, state.flightId, task.task)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  state.statusMessage = `Cleared penalties for ${task.task}`
+  render()
+}
+
+async function clearComments() {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile first.' })
+    return
+  }
+  const record = await clearTaskComments(classId, state.flightId, task.task)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  state.statusMessage = `Cleared comments for ${task.task}`
+  render()
+}
+
 function bindTaskActions() {
   app.querySelectorAll('[data-grade]').forEach((el) => {
     el.addEventListener('click', () => saveGrade(el.dataset.grade))
@@ -1171,6 +1207,12 @@ function bindTaskActions() {
   })
   app.querySelectorAll('[data-action="submit-comment"]').forEach((el) => {
     el.addEventListener('click', () => saveComment())
+  })
+  app.querySelectorAll('[data-action="clear-penalties"]').forEach((el) => {
+    el.addEventListener('click', () => clearPenalties())
+  })
+  app.querySelectorAll('[data-action="clear-comments"]').forEach((el) => {
+    el.addEventListener('click', () => clearComments())
   })
   app.querySelectorAll('[data-action="finalize-task"]').forEach((el) => {
     el.addEventListener('click', () => finalizeTask())

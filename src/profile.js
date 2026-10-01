@@ -615,6 +615,20 @@ export async function addTaskComment(classId, flightId, taskCode, commentText) {
   })
 }
 
+export async function clearTaskPenalties(classId, flightId, taskCode) {
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    rec.penalties = []
+    return rec
+  })
+}
+
+export async function clearTaskComments(classId, flightId, taskCode) {
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    rec.comments = []
+    return rec
+  })
+}
+
 export function profileFolderHint(classId, flightId, taskCode) {
   const cls = classId || '{class}'
   const flt = flightId || '{flight}'
