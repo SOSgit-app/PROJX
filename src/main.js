@@ -530,20 +530,6 @@ function renderClassProfile() {
         <p>Enter the class name and link a save folder on this device. You’ll pick the flight after the matrix is uploaded.</p>
       </div>
       <form id="class-profile-form" class="class-profile-panel" autocomplete="off">
-        <label class="lock-label" for="class-id-input">Class name</label>
-        <input
-          id="class-id-input"
-          name="classId"
-          type="text"
-          class="lock-input"
-          value="${escapeHtml(suggested)}"
-          placeholder="26G"
-          required
-          maxlength="32"
-          autofocus
-        />
-        <p class="class-profile-hint">Example path: <strong>${escapeHtml(suggested || '26G')}</strong> / {flight} / {task} /</p>
-
         <div class="class-folder-block">
           <p class="lock-label">Save folder on this device</p>
           <p class="class-folder-status">${
@@ -557,6 +543,20 @@ function renderClassProfile() {
             ${state.folderLinked ? 'Change linked folder' : 'Link profile folder'}
           </button>
         </div>
+
+        <label class="lock-label" for="class-id-input">Class name</label>
+        <input
+          id="class-id-input"
+          name="classId"
+          type="text"
+          class="lock-input"
+          value="${escapeHtml(suggested)}"
+          placeholder="26G"
+          required
+          maxlength="32"
+          autofocus
+        />
+        <p class="class-profile-hint">Example path: <strong>${escapeHtml(suggested || '26G')}</strong> / {flight} / {task} /</p>
 
         ${state.statusMessage && state.step === 'class-profile' ? `<p class="status-message class-profile-status">${escapeHtml(state.statusMessage)}</p>` : ''}
         ${state.error ? `<p class="error" role="alert">${escapeHtml(state.error)}</p>` : ''}
