@@ -14,13 +14,16 @@ import {
   clearTaskComments,
   clearTaskPenalties,
   downloadFlightBackup,
+  formatDuration,
   getClassId,
   getTaskRecord,
-  restoreFlightBackupFromFile,
+  normalizeResult,
   removeTaskComment,
   removeTaskPenalty,
+  restoreFlightBackupFromFile,
   setClassId,
   setTaskGrade,
+  startTaskTimer,
 } from './profile.js'
 
 const AUTH_KEY = 'projx-auth-v1'
@@ -114,12 +117,13 @@ function cacheKey(taskCode) {
 }
 
 function cachedResult(taskCode) {
-  return state.recordCache[cacheKey(taskCode)]?.result || null
+  return normalizeResult(state.recordCache[cacheKey(taskCode)]?.result || null)
 }
 
 function resultLabel(result) {
-  if (result === 'pass') return 'Pass'
-  if (result === 'fail') return 'Fail'
+  const normalized = normalizeResult(result)
+  if (normalized === 'complete') return 'Complete'
+  if (normalized === 'incomplete') return 'Incomplete'
   return 'Not graded'
 }
 
@@ -613,15 +617,15 @@ function renderTaskRail(tasks, phase) {
 
 function phaseProgress(tasks) {
   if (!tasks?.length) return ''
-  let pass = 0
-  let fail = 0
+  let complete = 0
+  let incomplete = 0
   for (const t of tasks) {
     const r = cachedResult(t.task)
-    if (r === 'pass') pass += 1
-    if (r === 'fail') fail += 1
+    if (r === 'complete') complete += 1
+    if (r === 'incomplete') incomplete += 1
   }
-  const graded = pass + fail
-  return `<span class="phase-progress">${graded}/${tasks.length} graded · ${pass} pass · ${fail} fail</span>`
+  const graded = complete + incomplete
+  return `<span class="phase-progress">${graded}/${tasks.length} graded · ${complete} complete · ${incomplete} incomplete</span>`
 }
 
 function renderSchedule() {
@@ -692,13 +696,21 @@ function renderTask() {
   }
 
   const record = state.taskRecord
-  const result = record?.result || cachedResult(task.task)
+  const result = normalizeResult(record?.result || cachedResult(task.task))
   const note = findNotetaker(task.task)
   const penaltyOptions = penaltiesForTask(task.task)
   const recordedPenalties = record?.penalties || []
-  const comments = record?.comments || []
+  const studentComments = record?.studentComments || record?.comments || []
+  const operationalComments = record?.operationalComments || []
+  const timerRunning = Boolean(record?.timerStartedAt)
+  const elapsedMs = timerRunning
+    ? Math.max(0, Date.now() - new Date(record.timerStartedAt).getTime())
+    : record?.durationMs
   const canFinalize =
-    Boolean(result) || recordedPenalties.length > 0 || comments.length > 0
+    Boolean(result) ||
+    recordedPenalties.length > 0 ||
+    studentComments.length > 0 ||
+    operationalComments.length > 0
   const actions = `
     <button type="button" class="btn" data-action="back-schedule">Schedule</button>
     <button type="button" class="btn" data-action="reset">New upload</button>
@@ -718,13 +730,19 @@ function renderTask() {
         </div>
 
         <div class="grade-panel">
-          <p class="grade-label">Instructor result</p>
+          <p class="grade-label">Task timer</p>
+          <p class="timer-display" id="task-timer-display">${escapeHtml(formatDuration(elapsedMs))}</p>
+          <button type="button" class="btn btn-timer" data-action="start-timer" ${timerRunning ? 'disabled' : ''}>
+            ${timerRunning ? 'Timer running…' : record?.durationMs != null ? 'Restart timer' : 'Start timer'}
+          </button>
+
+          <p class="grade-label grade-label-spaced">Instructor result</p>
           <p class="grade-current is-${result || 'none'}">${escapeHtml(resultLabel(result))}</p>
           <div class="grade-actions">
-            <button type="button" class="btn btn-pass${result === 'pass' ? ' is-selected' : ''}" data-grade="pass">Pass</button>
-            <button type="button" class="btn btn-fail${result === 'fail' ? ' is-selected' : ''}" data-grade="fail">Fail</button>
+            <button type="button" class="btn btn-complete${result === 'complete' ? ' is-selected' : ''}" data-grade="complete">Complete</button>
+            <button type="button" class="btn btn-incomplete${result === 'incomplete' ? ' is-selected' : ''}" data-grade="incomplete">Incomplete</button>
           </div>
-          <button type="button" class="btn btn-clear" data-grade="clear" ${result ? '' : 'disabled'}>Clear result</button>
+          <button type="button" class="btn btn-clear" data-grade="clear" ${result || record?.durationMs != null ? '' : 'disabled'}>Clear result</button>
 
           <div class="penalty-block">
             <p class="grade-label">Penalties</p>
@@ -766,33 +784,8 @@ function renderTask() {
             }
           </div>
 
-          <div class="comment-block">
-            <p class="grade-label">Comments</p>
-            <textarea id="task-comment" class="comment-input" rows="3" placeholder="Add an instructor comment for this task"></textarea>
-            <button type="button" class="btn btn-primary btn-comment-submit" data-action="submit-comment">Submit comment</button>
-            ${
-              comments.length
-                ? `<ul class="recorded-list">
-                    ${comments
-                      .map(
-                        (c) => `<li class="recorded-item">
-                          <div class="recorded-item-main">
-                            <strong>Comment</strong> · ${escapeHtml(c.text)}
-                            <span>${escapeHtml(formatWhen(c.recordedAt))}</span>
-                          </div>
-                          <button type="button" class="btn-icon-delete" data-delete-comment="${escapeHtml(c.id || '')}" aria-label="Delete comment" title="Delete comment">
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                              <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                          </button>
-                        </li>`,
-                      )
-                      .join('')}
-                  </ul>
-                  <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-comments">Clear comments</button>`
-                : ''
-            }
-          </div>
+          ${renderCommentSection('student', 'Student Related Comments', 'Add a student-related comment', studentComments)}
+          ${renderCommentSection('operational', 'Operational/Equipment Comments', 'Add an operational or equipment comment', operationalComments)}
 
           ${
             note
@@ -810,6 +803,38 @@ function renderTask() {
           ${state.statusMessage ? `<p class="status-message">${escapeHtml(state.statusMessage)}</p>` : ''}
         </div>
       </div>
+    </div>
+  `
+}
+
+function renderCommentSection(kind, title, placeholder, comments) {
+  return `
+    <div class="comment-block">
+      <p class="grade-label">${escapeHtml(title)}</p>
+      <textarea id="task-comment-${kind}" class="comment-input" rows="3" placeholder="${escapeHtml(placeholder)}"></textarea>
+      <button type="button" class="btn btn-primary btn-comment-submit" data-action="submit-comment" data-comment-kind="${kind}">Submit comment</button>
+      ${
+        comments.length
+          ? `<ul class="recorded-list">
+              ${comments
+                .map(
+                  (c) => `<li class="recorded-item">
+                    <div class="recorded-item-main">
+                      <strong>Comment</strong> · ${escapeHtml(c.text)}
+                      <span>${escapeHtml(formatWhen(c.recordedAt))}</span>
+                    </div>
+                    <button type="button" class="btn-icon-delete" data-delete-comment="${escapeHtml(c.id || '')}" data-comment-kind="${kind}" aria-label="Delete comment" title="Delete comment">
+                      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </button>
+                  </li>`,
+                )
+                .join('')}
+            </ul>
+            <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-comments" data-comment-kind="${kind}">Clear comments</button>`
+          : ''
+      }
     </div>
   `
 }
@@ -976,10 +1001,53 @@ async function saveGrade(action) {
   state.taskRecord = record
   state.recordCache[cacheKey(task.task)] = record
   state.classId = classId
+  stopTimerTick()
   state.statusMessage = result
-    ? `Saved ${result.toUpperCase()} for ${task.task}`
+    ? `Saved ${resultLabel(result)} for ${task.task}${
+        record.durationMs != null ? ` · ${formatDuration(record.durationMs)}` : ''
+      }`
     : `Cleared result for ${task.task}`
   render()
+}
+
+async function beginTaskTimer() {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile before starting the timer.' })
+    return
+  }
+  const record = await startTaskTimer(classId, state.flightId, task.task)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  state.statusMessage = `Timer started for ${task.task}`
+  render()
+  startTimerTick()
+}
+
+let timerTickId = null
+
+function stopTimerTick() {
+  if (timerTickId != null) {
+    clearInterval(timerTickId)
+    timerTickId = null
+  }
+}
+
+function startTimerTick() {
+  stopTimerTick()
+  timerTickId = setInterval(() => {
+    const started = state.taskRecord?.timerStartedAt
+    const el = app.querySelector('#task-timer-display')
+    if (!started || !el || state.step !== 'task') {
+      stopTimerTick()
+      return
+    }
+    const ms = Math.max(0, Date.now() - new Date(started).getTime())
+    el.textContent = formatDuration(ms)
+  }, 250)
 }
 
 async function savePenalty(index) {
@@ -1002,7 +1070,7 @@ async function savePenalty(index) {
   render()
 }
 
-async function saveComment() {
+async function saveComment(kind = 'student') {
   const task = activeTaskRecord()
   if (!task) return
   const classId = requireClassId()
@@ -1010,14 +1078,17 @@ async function saveComment() {
     setState({ statusMessage: 'Set a class profile before saving comments.' })
     return
   }
-  const textarea = app.querySelector('#task-comment')
+  const textarea = app.querySelector(`#task-comment-${kind}`)
   const text = textarea?.value || ''
   try {
-    const record = await addTaskComment(classId, state.flightId, task.task, text)
+    const record = await addTaskComment(classId, state.flightId, task.task, text, kind)
     state.taskRecord = record
     state.recordCache[cacheKey(task.task)] = record
     state.classId = classId
-    state.statusMessage = `Comment saved for ${task.task}`
+    state.statusMessage =
+      kind === 'operational'
+        ? `Operational/equipment comment saved for ${task.task}`
+        : `Student comment saved for ${task.task}`
     render()
   } catch (err) {
     setState({ statusMessage: err.message || 'Could not save comment.' })
@@ -1040,7 +1111,7 @@ async function clearPenalties() {
   render()
 }
 
-async function clearComments() {
+async function clearComments(kind = 'student') {
   const task = activeTaskRecord()
   if (!task) return
   const classId = requireClassId()
@@ -1048,11 +1119,14 @@ async function clearComments() {
     setState({ statusMessage: 'Set a class profile first.' })
     return
   }
-  const record = await clearTaskComments(classId, state.flightId, task.task)
+  const record = await clearTaskComments(classId, state.flightId, task.task, kind)
   state.taskRecord = record
   state.recordCache[cacheKey(task.task)] = record
   state.classId = classId
-  state.statusMessage = `Cleared comments for ${task.task}`
+  state.statusMessage =
+    kind === 'operational'
+      ? `Cleared operational/equipment comments for ${task.task}`
+      : `Cleared student comments for ${task.task}`
   render()
 }
 
@@ -1072,7 +1146,7 @@ async function deletePenalty(penaltyId) {
   render()
 }
 
-async function deleteComment(commentId) {
+async function deleteComment(commentId, kind = 'student') {
   const task = activeTaskRecord()
   if (!task || !commentId) return
   const classId = requireClassId()
@@ -1080,7 +1154,13 @@ async function deleteComment(commentId) {
     setState({ statusMessage: 'Set a class profile first.' })
     return
   }
-  const record = await removeTaskComment(classId, state.flightId, task.task, commentId)
+  const record = await removeTaskComment(
+    classId,
+    state.flightId,
+    task.task,
+    commentId,
+    kind,
+  )
   state.taskRecord = record
   state.recordCache[cacheKey(task.task)] = record
   state.classId = classId
@@ -1092,27 +1172,34 @@ function bindTaskActions() {
   app.querySelectorAll('[data-grade]').forEach((el) => {
     el.addEventListener('click', () => saveGrade(el.dataset.grade))
   })
+  app.querySelectorAll('[data-action="start-timer"]').forEach((el) => {
+    el.addEventListener('click', () => beginTaskTimer())
+  })
   app.querySelectorAll('[data-record-penalty]').forEach((el) => {
     el.addEventListener('click', () => savePenalty(el.dataset.recordPenalty))
   })
   app.querySelectorAll('[data-action="submit-comment"]').forEach((el) => {
-    el.addEventListener('click', () => saveComment())
+    el.addEventListener('click', () => saveComment(el.dataset.commentKind || 'student'))
   })
   app.querySelectorAll('[data-action="clear-penalties"]').forEach((el) => {
     el.addEventListener('click', () => clearPenalties())
   })
   app.querySelectorAll('[data-action="clear-comments"]').forEach((el) => {
-    el.addEventListener('click', () => clearComments())
+    el.addEventListener('click', () => clearComments(el.dataset.commentKind || 'student'))
   })
   app.querySelectorAll('[data-delete-penalty]').forEach((el) => {
     el.addEventListener('click', () => deletePenalty(el.dataset.deletePenalty))
   })
   app.querySelectorAll('[data-delete-comment]').forEach((el) => {
-    el.addEventListener('click', () => deleteComment(el.dataset.deleteComment))
+    el.addEventListener('click', () =>
+      deleteComment(el.dataset.deleteComment, el.dataset.commentKind || 'student'),
+    )
   })
   app.querySelectorAll('[data-action="finalize-task"]').forEach((el) => {
     el.addEventListener('click', () => finalizeTask())
   })
+  if (state.taskRecord?.timerStartedAt) startTimerTick()
+  else stopTimerTick()
 }
 
 async function finalizeTask() {
@@ -1164,7 +1251,7 @@ async function downloadCurrentFlightReport() {
       phase2: flight.phase2 || [],
     })
     setState({
-      statusMessage: `Downloaded ${result.filename} · ${result.pass} pass / ${result.fail} fail · ${result.penaltyCount} penalties · ${result.commentCount} comments`,
+      statusMessage: `Downloaded ${result.filename} · ${result.complete} complete / ${result.incomplete} incomplete · ${result.penaltyCount} penalties · ${result.commentCount} comments`,
     })
   } catch (err) {
     setState({ statusMessage: err.message || 'Could not download flight report.' })

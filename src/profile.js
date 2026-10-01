@@ -11,7 +11,7 @@ const META_KEY = 'projx-profile-meta-v1'
 const DB_NAME = 'projx-profiles'
 const DB_STORE = 'records'
 export const BACKUP_TYPE = 'projx-flight-backup'
-export const BACKUP_VERSION = 1
+export const BACKUP_VERSION = 2
 
 function loadMeta() {
   try {
@@ -56,6 +56,12 @@ function recordPath(classId, flightId, taskCode) {
     .join('/')
 }
 
+export function normalizeResult(result) {
+  if (result === 'complete' || result === 'pass') return 'complete'
+  if (result === 'incomplete' || result === 'fail') return 'incomplete'
+  return null
+}
+
 function emptyRecord(classId, flightId, taskCode) {
   return {
     path: recordPath(classId, flightId, taskCode),
@@ -64,8 +70,49 @@ function emptyRecord(classId, flightId, taskCode) {
     taskCode: String(taskCode || '').trim().toUpperCase(),
     result: null,
     penalties: [],
-    comments: [],
+    studentComments: [],
+    operationalComments: [],
+    timerStartedAt: null,
+    durationMs: null,
     updatedAt: null,
+  }
+}
+
+/** Normalize legacy records (pass/fail, comments[]) into the current shape. */
+export function normalizeRecord(raw, classId, flightId, taskCode) {
+  const base = emptyRecord(
+    classId || raw?.classId,
+    flightId || raw?.flightId,
+    taskCode || raw?.taskCode,
+  )
+  if (!raw || typeof raw !== 'object') return base
+
+  const studentComments = Array.isArray(raw.studentComments)
+    ? raw.studentComments
+    : Array.isArray(raw.comments)
+      ? raw.comments
+      : []
+  const operationalComments = Array.isArray(raw.operationalComments)
+    ? raw.operationalComments
+    : []
+
+  return {
+    ...base,
+    ...raw,
+    path: recordPath(base.classId, base.flightId, base.taskCode),
+    classId: base.classId,
+    flightId: base.flightId,
+    taskCode: base.taskCode,
+    result: normalizeResult(raw.result),
+    penalties: Array.isArray(raw.penalties) ? raw.penalties : [],
+    studentComments,
+    operationalComments,
+    timerStartedAt: raw.timerStartedAt || null,
+    durationMs:
+      typeof raw.durationMs === 'number' && Number.isFinite(raw.durationMs)
+        ? raw.durationMs
+        : null,
+    updatedAt: raw.updatedAt || null,
   }
 }
 
@@ -99,9 +146,6 @@ async function idbDelete(path) {
   })
 }
 
-/**
- * Download a restore-ready JSON backup of all progress for one class + flight.
- */
 export async function downloadFlightBackup(classId, flightId) {
   const backup = await buildFlightBackup(classId, flightId)
   const stamp = backup.exportedAt.replace(/[:.]/g, '-').slice(0, 19)
@@ -136,7 +180,12 @@ export async function buildFlightBackup(classId, flightId) {
       taskCode: r.taskCode,
       result: r.result ?? null,
       penalties: Array.isArray(r.penalties) ? r.penalties : [],
-      comments: Array.isArray(r.comments) ? r.comments : [],
+      studentComments: Array.isArray(r.studentComments) ? r.studentComments : [],
+      operationalComments: Array.isArray(r.operationalComments)
+        ? r.operationalComments
+        : [],
+      timerStartedAt: r.timerStartedAt || null,
+      durationMs: r.durationMs ?? null,
       updatedAt: r.updatedAt || null,
     })),
   }
@@ -195,17 +244,7 @@ function normalizeBackupRecord(raw, classId, flightId) {
   if (!raw || typeof raw !== 'object') return null
   const taskCode = String(raw.taskCode || '').trim().toUpperCase()
   if (!taskCode) return null
-  const result = raw.result === 'pass' || raw.result === 'fail' ? raw.result : null
-  return {
-    path: recordPath(classId, flightId, taskCode),
-    classId,
-    flightId,
-    taskCode,
-    result,
-    penalties: Array.isArray(raw.penalties) ? raw.penalties : [],
-    comments: Array.isArray(raw.comments) ? raw.comments : [],
-    updatedAt: raw.updatedAt || new Date().toISOString(),
-  }
+  return normalizeRecord(raw, classId, flightId, taskCode)
 }
 
 function triggerDownload(data, filename, mime) {
@@ -232,7 +271,11 @@ async function listRecordsForClass(classId) {
     const req = store.getAll()
     req.onsuccess = () => {
       const all = Array.isArray(req.result) ? req.result : []
-      resolve(all.filter((r) => String(r?.classId || '').toUpperCase() === classId))
+      resolve(
+        all
+          .filter((r) => String(r?.classId || '').toUpperCase() === classId)
+          .map((r) => normalizeRecord(r, r.classId, r.flightId, r.taskCode)),
+      )
     }
     req.onerror = () => reject(req.error || new Error('Could not read profiles.'))
   })
@@ -256,7 +299,7 @@ export async function getTaskRecord(classId, flightId, taskCode) {
   }
   const path = recordPath(classId, flightId, taskCode)
   const existing = await idbGet(path)
-  return existing || emptyRecord(classId, flightId, taskCode)
+  return normalizeRecord(existing || emptyRecord(classId, flightId, taskCode), classId, flightId, taskCode)
 }
 
 async function mutateTaskRecord(classId, flightId, taskCode, mutator) {
@@ -264,19 +307,60 @@ async function mutateTaskRecord(classId, flightId, taskCode, mutator) {
     throw new Error('Set a class profile and select a flight before saving.')
   }
   const current = await getTaskRecord(classId, flightId, taskCode)
-  const next = mutator({ ...current, penalties: [...current.penalties], comments: [...current.comments] })
+  const next = mutator({
+    ...current,
+    penalties: [...current.penalties],
+    studentComments: [...current.studentComments],
+    operationalComments: [...current.operationalComments],
+  })
   next.path = recordPath(classId, flightId, taskCode)
   next.classId = String(classId).trim().toUpperCase()
   next.flightId = String(flightId).trim().toUpperCase()
   next.taskCode = String(taskCode).trim().toUpperCase()
+  next.result = normalizeResult(next.result)
   next.updatedAt = new Date().toISOString()
+  delete next.comments
   await idbPut(next)
   return next
 }
 
 export async function setTaskGrade(classId, flightId, taskCode, result) {
   return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
-    rec.result = result
+    const nextResult = result === 'clear' || result == null ? null : normalizeResult(result)
+    if (nextResult && rec.timerStartedAt) {
+      const started = new Date(rec.timerStartedAt).getTime()
+      if (Number.isFinite(started)) {
+        rec.durationMs = Math.max(0, Date.now() - started)
+      }
+      rec.timerStartedAt = null
+    }
+    if (!nextResult) {
+      rec.timerStartedAt = null
+      rec.durationMs = null
+    }
+    rec.result = nextResult
+    return rec
+  })
+}
+
+export async function startTaskTimer(classId, flightId, taskCode) {
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    rec.timerStartedAt = new Date().toISOString()
+    rec.durationMs = null
+    return rec
+  })
+}
+
+export async function addTaskComment(classId, flightId, taskCode, commentText, kind = 'student') {
+  const text = String(commentText || '').trim()
+  if (!text) throw new Error('Comment cannot be empty.')
+  const field = kind === 'operational' ? 'operationalComments' : 'studentComments'
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    rec[field].push({
+      id: crypto.randomUUID(),
+      text,
+      recordedAt: new Date().toISOString(),
+    })
     return rec
   })
 }
@@ -292,19 +376,6 @@ export async function addTaskPenalty(classId, flightId, taskCode, penaltyText) {
   })
 }
 
-export async function addTaskComment(classId, flightId, taskCode, commentText) {
-  const text = String(commentText || '').trim()
-  if (!text) throw new Error('Comment cannot be empty.')
-  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
-    rec.comments.push({
-      id: crypto.randomUUID(),
-      text,
-      recordedAt: new Date().toISOString(),
-    })
-    return rec
-  })
-}
-
 export async function clearTaskPenalties(classId, flightId, taskCode) {
   return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
     rec.penalties = []
@@ -312,9 +383,10 @@ export async function clearTaskPenalties(classId, flightId, taskCode) {
   })
 }
 
-export async function clearTaskComments(classId, flightId, taskCode) {
+export async function clearTaskComments(classId, flightId, taskCode, kind = 'student') {
+  const field = kind === 'operational' ? 'operationalComments' : 'studentComments'
   return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
-    rec.comments = []
+    rec[field] = []
     return rec
   })
 }
@@ -329,12 +401,25 @@ export async function removeTaskPenalty(classId, flightId, taskCode, penaltyId) 
   })
 }
 
-export async function removeTaskComment(classId, flightId, taskCode, commentId) {
+export async function removeTaskComment(classId, flightId, taskCode, commentId, kind = 'student') {
+  const field = kind === 'operational' ? 'operationalComments' : 'studentComments'
   return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
     const id = String(commentId || '')
     if (id) {
-      rec.comments = rec.comments.filter((c) => String(c.id) !== id)
+      rec[field] = rec[field].filter((c) => String(c.id) !== id)
     }
     return rec
   })
+}
+
+export function formatDuration(ms) {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return '—'
+  const totalSec = Math.floor(ms / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  }
+  return `${m}:${String(s).padStart(2, '0')}`
 }
