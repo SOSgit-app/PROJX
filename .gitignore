@@ -20,6 +20,10 @@ dist-ssr
 # Original logo folder with spaces; app uses public/squadrons
 squadrons logo/
 
+# Source notetaker pack; app uses public/notetakers
+26D Project X Notetakers/
+26D Project X Notetakers.pdf
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

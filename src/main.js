@@ -5,20 +5,48 @@ import {
   flightsForSquadron,
   squadronForFlightId,
 } from './squadrons.js'
+import { findNotetaker, notetakersForVersion } from './notetakers.js'
+import { penaltiesForTask } from './penalties.js'
 import {
-  getTaskResult,
-  resultLabel,
-  setTaskResult,
-  taskResultKey,
-} from './results.js'
+  addTaskComment,
+  addTaskPenalty,
+  canUseFolderApi,
+  getClassId,
+  getFolderLinked,
+  getTaskRecord,
+  linkProfilesFolder,
+  profileFolderHint,
+  setClassId,
+  setTaskGrade,
+} from './profile.js'
+
+const APP_STEPS = new Set([
+  'upload',
+  'squadron',
+  'flight',
+  'schedule',
+  'task',
+  'resources-list',
+  'resources-view',
+])
 
 const state = {
-  step: 'upload', // upload | squadron | flight | schedule | task
+  step: 'upload',
   workbook: null,
   fileName: '',
   squadronId: null,
   flightId: null,
-  activeTask: null, // { phase: 'phase1'|'phase2', index: number }
+  activeTask: null,
+  menuOpen: false,
+  resourceVersion: null,
+  resourceCode: null,
+  returnStep: 'upload',
+  classId: getClassId(),
+  folderLinked: getFolderLinked(),
+  penaltiesOpen: false,
+  taskRecord: null,
+  recordCache: {},
+  statusMessage: '',
   error: '',
 }
 
@@ -58,12 +86,53 @@ function activeTaskRecord() {
   }
 }
 
-function resultKeyFor(task, phase = task.phase) {
-  return taskResultKey(state.fileName, state.flightId, phase, task.column, task.task)
+function cacheKey(taskCode) {
+  return `${state.classId || ''}::${state.flightId || ''}::${taskCode}`.toUpperCase()
 }
 
-function currentResult(task, phase) {
-  return getTaskResult(resultKeyFor(task, phase))?.result || null
+function cachedResult(taskCode) {
+  return state.recordCache[cacheKey(taskCode)]?.result || null
+}
+
+function resultLabel(result) {
+  if (result === 'pass') return 'Pass'
+  if (result === 'fail') return 'Fail'
+  return 'Not graded'
+}
+
+function isResourceStep(step = state.step) {
+  return step === 'resources-list' || step === 'resources-view'
+}
+
+function rememberReturnStep() {
+  if (!isResourceStep(state.step) && APP_STEPS.has(state.step)) {
+    return state.step
+  }
+  return state.returnStep || 'upload'
+}
+
+function openResources(version) {
+  setState({
+    returnStep: rememberReturnStep(),
+    step: 'resources-list',
+    resourceVersion: version,
+    resourceCode: null,
+    menuOpen: false,
+    penaltiesOpen: false,
+  })
+}
+
+function closeResources() {
+  const back =
+    state.returnStep && !isResourceStep(state.returnStep)
+      ? state.returnStep
+      : 'upload'
+  setState({
+    step: back,
+    resourceVersion: null,
+    resourceCode: null,
+    menuOpen: false,
+  })
 }
 
 function resetToUpload() {
@@ -74,8 +143,61 @@ function resetToUpload() {
     squadronId: null,
     flightId: null,
     activeTask: null,
+    menuOpen: false,
+    resourceVersion: null,
+    resourceCode: null,
+    returnStep: 'upload',
+    penaltiesOpen: false,
+    taskRecord: null,
+    recordCache: {},
+    statusMessage: '',
     error: '',
   })
+}
+
+function requireClassId() {
+  let classId = state.classId || getClassId()
+  if (!classId) {
+    const entered = window.prompt(
+      'Enter the class profile folder name (example: 26G):',
+      '26G',
+    )
+    if (!entered || !entered.trim()) return null
+    classId = setClassId(entered.trim())
+    state.classId = classId
+  }
+  return classId
+}
+
+async function refreshTaskRecord() {
+  const task = activeTaskRecord()
+  if (!task || !state.flightId) {
+    state.taskRecord = null
+    return
+  }
+  const classId = state.classId || getClassId()
+  if (!classId) {
+    state.taskRecord = null
+    return
+  }
+  const record = await getTaskRecord(classId, state.flightId, task.task)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+}
+
+async function preloadFlightRecords() {
+  const flight = selectedFlight()
+  const classId = state.classId || getClassId()
+  if (!flight || !classId) return
+  const tasks = [...(flight.phase1 || []), ...(flight.phase2 || [])]
+  const cache = { ...state.recordCache }
+  await Promise.all(
+    tasks.map(async (t) => {
+      const record = await getTaskRecord(classId, flight.id, t.task)
+      cache[cacheKey(t.task)] = record
+    }),
+  )
+  state.recordCache = cache
 }
 
 async function handleFile(file) {
@@ -94,6 +216,7 @@ async function handleFile(file) {
     const buffer = await file.arrayBuffer()
     const workbook = parseProjectXWorkbook(buffer)
     workbook.fileLabel = file.name
+    requireClassId()
     setState({
       workbook,
       fileName: file.name,
@@ -102,6 +225,15 @@ async function handleFile(file) {
       squadronId: null,
       flightId: null,
       activeTask: null,
+      menuOpen: false,
+      resourceVersion: null,
+      resourceCode: null,
+      returnStep: 'squadron',
+      classId: getClassId(),
+      penaltiesOpen: false,
+      taskRecord: null,
+      recordCache: {},
+      statusMessage: '',
     })
   } catch (err) {
     console.error(err)
@@ -110,6 +242,7 @@ async function handleFile(file) {
       workbook: null,
       step: 'upload',
       activeTask: null,
+      menuOpen: false,
     })
   }
 }
@@ -153,14 +286,61 @@ function bindUpload(root) {
 }
 
 function topBar(extraActions = '') {
+  const classChip = state.classId
+    ? `<span class="file-chip" title="Class profile">${escapeHtml(state.classId)}</span>`
+    : ''
   return `
     <header class="topbar">
       <div class="brand-mark">
         <span class="eyebrow">Squadron Officer School</span>
         <p class="title">Project X</p>
       </div>
-      <div class="nav-actions">${extraActions}</div>
+      <div class="nav-actions">${classChip}${extraActions}</div>
     </header>
+  `
+}
+
+function renderSideMenu() {
+  const open = state.menuOpen
+  return `
+    <button
+      type="button"
+      class="menu-toggle${open ? ' is-open' : ''}"
+      data-action="toggle-menu"
+      aria-expanded="${open ? 'true' : 'false'}"
+      aria-controls="side-menu"
+      aria-label="${open ? 'Close menu' : 'Open menu'}"
+    >
+      <span></span><span></span><span></span>
+    </button>
+    <div class="menu-backdrop${open ? ' is-open' : ''}" data-action="close-menu" ${open ? '' : 'hidden'}></div>
+    <aside id="side-menu" class="side-menu${open ? ' is-open' : ''}" aria-hidden="${open ? 'false' : 'true'}">
+      <div class="side-menu-head">
+        <p class="side-menu-kicker">Instructor tools</p>
+        <h2>Menu</h2>
+        <button type="button" class="btn side-menu-close" data-action="close-menu">Close</button>
+      </div>
+      <nav class="side-menu-nav" aria-label="Resources">
+        <p class="side-menu-section">Class profile</p>
+        <button type="button" class="side-menu-link" data-action="set-class">
+          <span class="side-menu-link-title">${state.classId ? escapeHtml(state.classId) : 'Set class'}</span>
+          <span class="side-menu-link-meta">Folder name like 26G</span>
+        </button>
+        <button type="button" class="side-menu-link" data-action="link-folder" ${canUseFolderApi() ? '' : 'disabled'}>
+          <span class="side-menu-link-title">${state.folderLinked ? 'Folder linked' : 'Link profile folder'}</span>
+          <span class="side-menu-link-meta">${canUseFolderApi() ? 'Writes class/flight/task files on this device' : 'Use Chrome/Edge to link a folder'}</span>
+        </button>
+        <p class="side-menu-section">Project X Notetakers</p>
+        <button type="button" class="side-menu-link" data-resource-version="A">
+          <span class="side-menu-link-title">Version A</span>
+          <span class="side-menu-link-meta">Tasks 1A–22A</span>
+        </button>
+        <button type="button" class="side-menu-link" data-resource-version="B">
+          <span class="side-menu-link-title">Version B</span>
+          <span class="side-menu-link-meta">Tasks 1B–22B</span>
+        </button>
+      </nav>
+    </aside>
   `
 }
 
@@ -172,7 +352,7 @@ function renderUpload() {
         <div class="hero-copy">
           <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">United States Air Force</span>
           <h1>Project X</h1>
-          <p class="lede">Upload the SOS flight matrix, select your squadron and flight, then grade each Phase I and Phase II task as Pass or Fail.</p>
+          <p class="lede">Upload the SOS flight matrix, grade Pass/Fail, log task penalties and comments into a class profile folder (example: 26G / flight / task).</p>
           <div class="hero-meta">
             <span>Phase I · Day 1</span>
             <span>Phase II · Day 2</span>
@@ -195,7 +375,7 @@ function renderUpload() {
           ${state.error ? `<p class="error" role="alert">${escapeHtml(state.error)}</p>` : ''}
         </div>
       </section>
-      <p class="footer-note">Reads the “Data Entry Matrix” sheet · Columns B–K Phase I · Columns M–V Phase II</p>
+      <p class="footer-note">Reads the “Data Entry Matrix” sheet · Use the menu to set class profile and open Version A/B notetakers</p>
     </div>
   `
 }
@@ -263,7 +443,7 @@ function renderFlight() {
       <div class="section-head">
         <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">${escapeHtml(sq?.unit || '')}</span>
         <h1>${escapeHtml(sq?.name || '')} flights</h1>
-        <p>Select the flight you will instruct. Open each task to mark Pass or Fail.</p>
+        <p>Select the flight you will instruct. Task data saves under ${escapeHtml(state.classId || '{class}')} / flight / task.</p>
       </div>
       <div class="flight-grid">${options || '<p class="empty-phase">No flights for this squadron in the uploaded file.</p>'}</div>
     </div>
@@ -278,7 +458,7 @@ function renderTaskRail(tasks, phase) {
     <div class="task-rail">
       ${tasks
         .map((t, index) => {
-          const result = currentResult(t, phase)
+          const result = cachedResult(t.task)
           const statusClass = result ? ` is-${result}` : ''
           return `
         <button
@@ -298,12 +478,12 @@ function renderTaskRail(tasks, phase) {
   `
 }
 
-function phaseProgress(tasks, phase) {
+function phaseProgress(tasks) {
   if (!tasks?.length) return ''
   let pass = 0
   let fail = 0
   for (const t of tasks) {
-    const r = currentResult(t, phase)
+    const r = cachedResult(t.task)
     if (r === 'pass') pass += 1
     if (r === 'fail') fail += 1
   }
@@ -328,7 +508,7 @@ function renderSchedule() {
         <div>
           <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">${escapeHtml(sq.unit)} · ${escapeHtml(sq.motto)}</span>
           <h1>Flight ${escapeHtml(flight.displayId)}</h1>
-          <p class="sub">Tap a task to open it and mark Pass or Fail. Results stay on this device.</p>
+          <p class="sub">Tap a task to grade, log penalties, and add comments.</p>
         </div>
       </div>
 
@@ -336,7 +516,7 @@ function renderSchedule() {
         <header>
           <div>
             <h2>Phase I</h2>
-            ${phaseProgress(flight.phase1, 'phase1')}
+            ${phaseProgress(flight.phase1)}
           </div>
           <span class="day">Day 1</span>
         </header>
@@ -347,7 +527,7 @@ function renderSchedule() {
         <header>
           <div>
             <h2>Phase II</h2>
-            ${phaseProgress(flight.phase2, 'phase2')}
+            ${phaseProgress(flight.phase2)}
           </div>
           <span class="day">Day 2</span>
         </header>
@@ -355,6 +535,15 @@ function renderSchedule() {
       </section>
     </div>
   `
+}
+
+function formatWhen(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString()
+  } catch {
+    return iso
+  }
 }
 
 function renderTask() {
@@ -365,7 +554,13 @@ function renderTask() {
     return renderSchedule()
   }
 
-  const result = currentResult(task, task.phase)
+  const record = state.taskRecord
+  const result = record?.result || cachedResult(task.task)
+  const note = findNotetaker(task.task)
+  const penaltyOptions = penaltiesForTask(task.task)
+  const recordedPenalties = record?.penalties || []
+  const comments = record?.comments || []
+  const folderPath = profileFolderHint(state.classId, state.flightId, task.task)
   const actions = `
     <button type="button" class="btn" data-action="back-schedule">Schedule</button>
     <button type="button" class="btn" data-action="reset">New upload</button>
@@ -380,7 +575,7 @@ function renderTask() {
           <div>
             <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Flight ${escapeHtml(flight.displayId)} · ${escapeHtml(task.phaseLabel)} · ${escapeHtml(task.dayLabel)}</span>
             <h1>Task ${escapeHtml(task.task)}</h1>
-            <p class="sub">Order ${task.order ?? '—'} in the flight schedule</p>
+            <p class="sub">Order ${task.order ?? '—'} · Saves to ${escapeHtml(folderPath)}</p>
           </div>
         </div>
 
@@ -392,8 +587,117 @@ function renderTask() {
             <button type="button" class="btn btn-fail${result === 'fail' ? ' is-selected' : ''}" data-grade="fail">Fail</button>
           </div>
           <button type="button" class="btn btn-clear" data-grade="clear" ${result ? '' : 'disabled'}>Clear result</button>
+
+          <div class="penalty-block">
+            <button type="button" class="btn btn-penalty" data-action="toggle-penalties">
+              ${state.penaltiesOpen ? 'Close penalties' : 'Penalties'}
+            </button>
+            ${
+              state.penaltiesOpen
+                ? `<div class="penalty-list" role="list">
+                    ${
+                      penaltyOptions.length
+                        ? penaltyOptions
+                            .map(
+                              (p, i) => `
+                      <button type="button" class="penalty-option" data-record-penalty="${i}" role="listitem">
+                        ${escapeHtml(p)}
+                      </button>`,
+                            )
+                            .join('')
+                        : '<p class="empty-phase">No penalty list found for this task code.</p>'
+                    }
+                  </div>`
+                : ''
+            }
+            ${
+              recordedPenalties.length
+                ? `<ul class="recorded-list">
+                    ${recordedPenalties
+                      .map(
+                        (p) => `<li><strong>Penalty</strong> · ${escapeHtml(p.text)}<span>${escapeHtml(formatWhen(p.recordedAt))}</span></li>`,
+                      )
+                      .join('')}
+                  </ul>`
+                : ''
+            }
+          </div>
+
+          <div class="comment-block">
+            <p class="grade-label">Comments</p>
+            <textarea id="task-comment" class="comment-input" rows="3" placeholder="Add an instructor comment for this task"></textarea>
+            <button type="button" class="btn btn-primary btn-comment-submit" data-action="submit-comment">Submit comment</button>
+            ${
+              comments.length
+                ? `<ul class="recorded-list">
+                    ${comments
+                      .map(
+                        (c) => `<li><strong>Comment</strong> · ${escapeHtml(c.text)}<span>${escapeHtml(formatWhen(c.recordedAt))}</span></li>`,
+                      )
+                      .join('')}
+                  </ul>`
+                : ''
+            }
+          </div>
+
+          ${
+            note
+              ? `<button type="button" class="btn btn-resource" data-open-notetaker="${note.code}">Open notetaker</button>`
+              : ''
+          }
+          ${state.statusMessage ? `<p class="status-message">${escapeHtml(state.statusMessage)}</p>` : ''}
         </div>
       </div>
+    </div>
+  `
+}
+
+function renderResourcesList() {
+  const version = String(state.resourceVersion || 'A').toUpperCase()
+  const items = notetakersForVersion(version)
+  const actions = `<button type="button" class="btn" data-action="close-resources">Back</button>`
+  const cards = items
+    .map(
+      (item) => `
+      <button type="button" class="resource-card" data-open-notetaker="${item.code}">
+        <img src="${asset(item.file)}" alt="${escapeHtml(item.code)} ${escapeHtml(item.title)}" loading="lazy" />
+        <span class="resource-card-code">${escapeHtml(item.code)}</span>
+        <span class="resource-card-title">${escapeHtml(item.title)}</span>
+      </button>
+    `,
+    )
+    .join('')
+
+  return `
+    <div class="shell">
+      ${topBar(actions)}
+      <div class="section-head">
+        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Resources · Notetakers</span>
+        <h1>Version ${escapeHtml(version)}</h1>
+        <p>Select a task image to view the full notetaker slide.</p>
+      </div>
+      <div class="resource-grid">${cards}</div>
+    </div>
+  `
+}
+
+function renderResourcesView() {
+  const note = findNotetaker(state.resourceCode)
+  if (!note) return renderResourcesList()
+  const actions = `
+    <button type="button" class="btn" data-action="back-resources-list">Task list</button>
+    <button type="button" class="btn" data-action="close-resources">Exit resources</button>
+  `
+  return `
+    <div class="shell">
+      ${topBar(actions)}
+      <div class="section-head">
+        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Version ${escapeHtml(note.code.slice(-1))} notetaker</span>
+        <h1>${escapeHtml(note.code)} · ${escapeHtml(note.title)}</h1>
+      </div>
+      <figure class="resource-viewer">
+        <img src="${asset(note.file)}" alt="${escapeHtml(note.code)} ${escapeHtml(note.title)}" />
+      </figure>
     </div>
   `
 }
@@ -406,6 +710,169 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;')
 }
 
+function bindChrome() {
+  app.querySelectorAll('[data-action="toggle-menu"]').forEach((el) => {
+    el.addEventListener('click', () => setState({ menuOpen: !state.menuOpen }))
+  })
+  app.querySelectorAll('[data-action="close-menu"]').forEach((el) => {
+    el.addEventListener('click', () => setState({ menuOpen: false }))
+  })
+  app.querySelectorAll('[data-resource-version]').forEach((el) => {
+    el.addEventListener('click', () => openResources(el.dataset.resourceVersion))
+  })
+  app.querySelectorAll('[data-action="close-resources"]').forEach((el) => {
+    el.addEventListener('click', closeResources)
+  })
+  app.querySelectorAll('[data-action="back-resources-list"]').forEach((el) => {
+    el.addEventListener('click', () =>
+      setState({ step: 'resources-list', resourceCode: null, menuOpen: false }),
+    )
+  })
+  app.querySelectorAll('[data-action="set-class"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const entered = window.prompt(
+        'Enter the class profile folder name (example: 26G):',
+        state.classId || '26G',
+      )
+      if (!entered || !entered.trim()) return
+      const classId = setClassId(entered.trim())
+      setState({
+        classId,
+        menuOpen: false,
+        recordCache: {},
+        taskRecord: null,
+        statusMessage: `Class profile set to ${classId}`,
+      })
+      if (state.step === 'task' || state.step === 'schedule') {
+        bootstrapStepData()
+      }
+    })
+  })
+  app.querySelectorAll('[data-action="link-folder"]').forEach((el) => {
+    el.addEventListener('click', async () => {
+      try {
+        await linkProfilesFolder()
+        setState({
+          folderLinked: true,
+          menuOpen: false,
+          statusMessage: 'Profile folder linked. Task saves will write class/flight/task files.',
+        })
+      } catch (err) {
+        setState({
+          menuOpen: false,
+          statusMessage: err.message || 'Could not link folder.',
+        })
+      }
+    })
+  })
+  app.querySelectorAll('[data-open-notetaker]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const code = String(el.dataset.openNotetaker || '').toUpperCase()
+      const note = findNotetaker(code)
+      if (!note) return
+      const returnStep = isResourceStep(state.step)
+        ? state.returnStep
+        : rememberReturnStep()
+      setState({
+        returnStep,
+        step: 'resources-view',
+        resourceVersion: note.code.slice(-1),
+        resourceCode: note.code,
+        menuOpen: false,
+      })
+    })
+  })
+}
+
+async function saveGrade(action) {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile before grading.' })
+    return
+  }
+  const result = action === 'clear' ? null : action
+  const record = await setTaskGrade(classId, state.flightId, task.task, result)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  state.penaltiesOpen = false
+  state.statusMessage = result
+    ? `Saved ${result.toUpperCase()} to ${profileFolderHint(classId, state.flightId, task.task)}`
+    : `Cleared result for ${task.task}`
+  render()
+}
+
+async function savePenalty(index) {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile before logging penalties.' })
+    return
+  }
+  const options = penaltiesForTask(task.task)
+  const text = options[Number(index)]
+  if (!text) return
+  const record = await addTaskPenalty(classId, state.flightId, task.task, text)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  state.penaltiesOpen = false
+  state.statusMessage = `Penalty recorded for ${task.task}`
+  render()
+}
+
+async function saveComment() {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile before saving comments.' })
+    return
+  }
+  const textarea = app.querySelector('#task-comment')
+  const text = textarea?.value || ''
+  try {
+    const record = await addTaskComment(classId, state.flightId, task.task, text)
+    state.taskRecord = record
+    state.recordCache[cacheKey(task.task)] = record
+    state.classId = classId
+    state.statusMessage = `Comment saved for ${task.task}`
+    render()
+  } catch (err) {
+    setState({ statusMessage: err.message || 'Could not save comment.' })
+  }
+}
+
+function bindTaskActions() {
+  app.querySelectorAll('[data-grade]').forEach((el) => {
+    el.addEventListener('click', () => saveGrade(el.dataset.grade))
+  })
+  app.querySelectorAll('[data-action="toggle-penalties"]').forEach((el) => {
+    el.addEventListener('click', () =>
+      setState({ penaltiesOpen: !state.penaltiesOpen, statusMessage: '' }),
+    )
+  })
+  app.querySelectorAll('[data-record-penalty]').forEach((el) => {
+    el.addEventListener('click', () => savePenalty(el.dataset.recordPenalty))
+  })
+  app.querySelectorAll('[data-action="submit-comment"]').forEach((el) => {
+    el.addEventListener('click', () => saveComment())
+  })
+}
+
+async function bootstrapStepData() {
+  if (state.step === 'schedule') {
+    await preloadFlightRecords()
+    render()
+  } else if (state.step === 'task') {
+    await refreshTaskRecord()
+    render()
+  }
+}
+
 function render() {
   let html = ''
   if (state.step === 'upload') html = renderUpload()
@@ -413,10 +880,14 @@ function render() {
   else if (state.step === 'flight') html = renderFlight()
   else if (state.step === 'schedule') html = renderSchedule()
   else if (state.step === 'task') html = renderTask()
+  else if (state.step === 'resources-list') html = renderResourcesList()
+  else if (state.step === 'resources-view') html = renderResourcesView()
 
-  app.innerHTML = html
+  app.innerHTML = `${renderSideMenu()}${html}`
 
   if (state.step === 'upload') bindUpload(app)
+  bindChrome()
+  if (state.step === 'task') bindTaskActions()
 
   app.querySelectorAll('[data-action="reset"]').forEach((el) => {
     el.addEventListener('click', resetToUpload)
@@ -428,18 +899,34 @@ function render() {
         squadronId: null,
         flightId: null,
         activeTask: null,
+        menuOpen: false,
+        penaltiesOpen: false,
+        taskRecord: null,
       }),
     )
   })
   app.querySelectorAll('[data-action="back-flight"]').forEach((el) => {
     el.addEventListener('click', () =>
-      setState({ step: 'flight', flightId: null, activeTask: null }),
+      setState({
+        step: 'flight',
+        flightId: null,
+        activeTask: null,
+        menuOpen: false,
+        penaltiesOpen: false,
+        taskRecord: null,
+      }),
     )
   })
   app.querySelectorAll('[data-action="back-schedule"]').forEach((el) => {
-    el.addEventListener('click', () =>
-      setState({ step: 'schedule', activeTask: null }),
-    )
+    el.addEventListener('click', async () => {
+      state.activeTask = null
+      state.penaltiesOpen = false
+      state.taskRecord = null
+      state.menuOpen = false
+      state.step = 'schedule'
+      await preloadFlightRecords()
+      render()
+    })
   })
   app.querySelectorAll('[data-squadron]').forEach((el) => {
     el.addEventListener('click', () => {
@@ -449,36 +936,47 @@ function render() {
         squadronId: el.dataset.squadron,
         flightId: null,
         activeTask: null,
+        menuOpen: false,
       })
     })
   })
   app.querySelectorAll('[data-flight]').forEach((el) => {
-    el.addEventListener('click', () => {
-      setState({ step: 'schedule', flightId: el.dataset.flight, activeTask: null })
+    el.addEventListener('click', async () => {
+      state.flightId = el.dataset.flight
+      state.activeTask = null
+      state.menuOpen = false
+      state.penaltiesOpen = false
+      state.step = 'schedule'
+      requireClassId()
+      state.classId = getClassId()
+      await preloadFlightRecords()
+      render()
     })
   })
   app.querySelectorAll('[data-open-task]').forEach((el) => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', async () => {
       const [phase, indexRaw] = String(el.dataset.openTask).split(':')
       const index = Number(indexRaw)
       if (!phase || Number.isNaN(index)) return
-      setState({
-        step: 'task',
-        activeTask: { phase, index },
-      })
-    })
-  })
-  app.querySelectorAll('[data-grade]').forEach((el) => {
-    el.addEventListener('click', () => {
-      const task = activeTaskRecord()
-      if (!task) return
-      const action = el.dataset.grade
-      const key = resultKeyFor(task, task.phase)
-      if (action === 'clear') setTaskResult(key, null)
-      else if (action === 'pass' || action === 'fail') setTaskResult(key, action)
+      state.step = 'task'
+      state.activeTask = { phase, index }
+      state.menuOpen = false
+      state.penaltiesOpen = false
+      state.statusMessage = ''
+      requireClassId()
+      state.classId = getClassId()
+      await refreshTaskRecord()
       render()
     })
   })
 }
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.menuOpen) {
+    setState({ menuOpen: false })
+  } else if (e.key === 'Escape' && state.penaltiesOpen) {
+    setState({ penaltiesOpen: false })
+  }
+})
 
 render()
