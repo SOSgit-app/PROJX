@@ -9,10 +9,18 @@ import { findNotetaker, notetakersForVersion } from './notetakers.js'
 import { penaltiesForTask } from './penalties.js'
 import { downloadFlightReport } from './report.js'
 import {
+  RUBRIC_CRITERIA,
+  RUBRIC_LEVELS,
+  normalizeRubric,
+  rubricHasMarks,
+  rubricLevelLabel,
+} from './rubric.js'
+import {
   addTaskComment,
   addTaskPenalty,
   clearTaskComments,
   clearTaskPenalties,
+  clearTaskRubric,
   downloadFlightBackup,
   formatDuration,
   getClassId,
@@ -22,6 +30,7 @@ import {
   removeTaskPenalty,
   restoreFlightBackupFromFile,
   setClassId,
+  setRubricMark,
   setTaskGrade,
   startTaskTimer,
 } from './profile.js'
@@ -702,6 +711,7 @@ function renderTask() {
   const recordedPenalties = record?.penalties || []
   const studentComments = record?.studentComments || record?.comments || []
   const operationalComments = record?.operationalComments || []
+  const rubric = normalizeRubric(record?.rubric)
   const timerRunning = Boolean(record?.timerStartedAt)
   const elapsedMs = timerRunning
     ? Math.max(0, Date.now() - new Date(record.timerStartedAt).getTime())
@@ -710,7 +720,8 @@ function renderTask() {
     Boolean(result) ||
     recordedPenalties.length > 0 ||
     studentComments.length > 0 ||
-    operationalComments.length > 0
+    operationalComments.length > 0 ||
+    rubricHasMarks(rubric)
   const actions = `
     <button type="button" class="btn" data-action="back-schedule">Schedule</button>
     <button type="button" class="btn" data-action="reset">New upload</button>
@@ -784,6 +795,8 @@ function renderTask() {
             }
           </div>
 
+          ${renderRubric(rubric)}
+
           ${renderCommentSection('student', 'Student Related Comments', 'Add a student-related comment', studentComments)}
           ${renderCommentSection('operational', 'Operational/Equipment Comments', 'Add an operational or equipment comment', operationalComments)}
 
@@ -803,6 +816,62 @@ function renderTask() {
           ${state.statusMessage ? `<p class="status-message">${escapeHtml(state.statusMessage)}</p>` : ''}
         </div>
       </div>
+    </div>
+  `
+}
+
+function renderRubric(rubric) {
+  const marks = normalizeRubric(rubric)
+  const headerCells = RUBRIC_LEVELS.map(
+    (level) => `<th scope="col">${escapeHtml(level.label)}</th>`,
+  ).join('')
+  const bodyRows = RUBRIC_CRITERIA.map((criterion) => {
+    const selected = marks[criterion.id]
+    const cells = RUBRIC_LEVELS.map((level) => {
+      const isMarked = selected === level.id
+      return `
+        <td>
+          <button
+            type="button"
+            class="rubric-cell-btn${isMarked ? ' is-marked' : ''}"
+            data-rubric-criterion="${criterion.id}"
+            data-rubric-level="${level.id}"
+            aria-pressed="${isMarked ? 'true' : 'false'}"
+            aria-label="${escapeHtml(criterion.label)} · ${escapeHtml(level.label)}${isMarked ? ' selected' : ''}"
+            title="${escapeHtml(criterion.label)} · ${escapeHtml(level.label)}"
+          >
+            <span class="rubric-mark" aria-hidden="true">${isMarked ? '✓' : '+'}</span>
+          </button>
+        </td>`
+    }).join('')
+    return `
+      <tr>
+        <th scope="row">${escapeHtml(criterion.label)}</th>
+        ${cells}
+      </tr>`
+  }).join('')
+
+  return `
+    <div class="rubric-block">
+      <p class="grade-label">Rubric</p>
+      <div class="rubric-scroll">
+        <table class="rubric-table">
+          <thead>
+            <tr>
+              <th scope="col" class="rubric-corner"></th>
+              ${headerCells}
+            </tr>
+          </thead>
+          <tbody>
+            ${bodyRows}
+          </tbody>
+        </table>
+      </div>
+      ${
+        rubricHasMarks(marks)
+          ? `<button type="button" class="btn btn-clear btn-clear-list" data-action="clear-rubric">Clear rubric</button>`
+          : ''
+      }
     </div>
   `
 }
@@ -1168,6 +1237,41 @@ async function deleteComment(commentId, kind = 'student') {
   render()
 }
 
+async function toggleRubricMark(criterion, level) {
+  const task = activeTaskRecord()
+  if (!task || !criterion || !level) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile before scoring the rubric.' })
+    return
+  }
+  const record = await setRubricMark(classId, state.flightId, task.task, criterion, level)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  const selected = record.rubric?.[criterion]
+  state.statusMessage = selected
+    ? `${RUBRIC_CRITERIA.find((c) => c.id === criterion)?.label || criterion}: ${rubricLevelLabel(selected)}`
+    : `Cleared rubric mark for ${RUBRIC_CRITERIA.find((c) => c.id === criterion)?.label || criterion}`
+  render()
+}
+
+async function clearRubric() {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile first.' })
+    return
+  }
+  const record = await clearTaskRubric(classId, state.flightId, task.task)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  state.statusMessage = `Cleared rubric for ${task.task}`
+  render()
+}
+
 function bindTaskActions() {
   app.querySelectorAll('[data-grade]').forEach((el) => {
     el.addEventListener('click', () => saveGrade(el.dataset.grade))
@@ -1177,6 +1281,14 @@ function bindTaskActions() {
   })
   app.querySelectorAll('[data-record-penalty]').forEach((el) => {
     el.addEventListener('click', () => savePenalty(el.dataset.recordPenalty))
+  })
+  app.querySelectorAll('[data-rubric-criterion]').forEach((el) => {
+    el.addEventListener('click', () =>
+      toggleRubricMark(el.dataset.rubricCriterion, el.dataset.rubricLevel),
+    )
+  })
+  app.querySelectorAll('[data-action="clear-rubric"]').forEach((el) => {
+    el.addEventListener('click', () => clearRubric())
   })
   app.querySelectorAll('[data-action="submit-comment"]').forEach((el) => {
     el.addEventListener('click', () => saveComment(el.dataset.commentKind || 'student'))

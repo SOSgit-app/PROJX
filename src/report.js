@@ -1,5 +1,10 @@
 import * as XLSX from 'xlsx'
 import { formatDuration, listFlightRecords, normalizeResult } from './profile.js'
+import {
+  RUBRIC_CRITERIA,
+  normalizeRubric,
+  rubricLevelLabel,
+} from './rubric.js'
 
 /**
  * Build and download an organized flight scoring report (.xlsx).
@@ -76,6 +81,10 @@ export async function downloadFlightReport({
       'Task',
       'Result',
       'Duration',
+      'Communication',
+      'Decision-Making',
+      'Leadership',
+      'Debrief',
       'Penalties',
       'Student Comments',
       'Operational Comments',
@@ -142,6 +151,8 @@ export async function downloadFlightReport({
       timedTasks += 1
     }
 
+    const rubric = normalizeRubric(record?.rubric)
+
     scoreRows.push([
       t.phase,
       t.day,
@@ -149,6 +160,7 @@ export async function downloadFlightReport({
       t.task,
       resultLabel,
       formatDuration(durationMs),
+      ...RUBRIC_CRITERIA.map((c) => rubricLevelLabel(rubric[c.id]) || ''),
       penalties.length,
       studentComments.length,
       operationalComments.length,
@@ -257,7 +269,7 @@ export async function downloadFlightReport({
   XLSX.utils.book_append_sheet(wb, summary, 'Summary')
 
   const scores = XLSX.utils.aoa_to_sheet(scoreRows)
-  scores['!cols'] = colWidths([10, 8, 8, 10, 12, 10, 10, 16, 18, 22])
+  scores['!cols'] = colWidths([10, 8, 8, 10, 12, 10, 14, 16, 12, 12, 10, 16, 18, 22])
   XLSX.utils.book_append_sheet(wb, scores, 'Task Scores')
 
   const penaltiesSheet = XLSX.utils.aoa_to_sheet(penaltyRows)

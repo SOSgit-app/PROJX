@@ -857,9 +857,95 @@ body::before {
 }
 
 .penalty-block,
-.comment-block {
+.comment-block,
+.rubric-block {
   margin-top: 1rem;
   text-align: left;
+}
+
+.rubric-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 0.55rem;
+}
+
+.rubric-table {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: rgba(0, 12, 32, 0.35);
+}
+
+.rubric-table th,
+.rubric-table td {
+  border: 1px solid rgba(200, 208, 220, 0.28);
+  padding: 0.35rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.rubric-table thead th {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--af-gold-bright);
+  background: rgba(0, 20, 48, 0.65);
+  padding: 0.55rem 0.35rem;
+  line-height: 1.2;
+}
+
+.rubric-table tbody th {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--af-ink);
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  background: rgba(0, 20, 48, 0.45);
+  width: 7.5rem;
+}
+
+.rubric-corner {
+  width: 7.5rem;
+}
+
+.rubric-cell-btn {
+  appearance: none;
+  width: 100%;
+  min-height: 2.75rem;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(200, 208, 220, 0.35);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--af-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.rubric-mark {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.rubric-cell-btn:hover,
+.rubric-cell-btn:active {
+  border-color: rgba(197, 179, 88, 0.55);
+  background: rgba(197, 179, 88, 0.1);
+  color: var(--af-gold-bright);
+}
+
+.rubric-cell-btn.is-marked {
+  border-style: solid;
+  border-color: #81c784;
+  background: rgba(46, 125, 50, 0.35);
+  color: #c8e6c9;
 }
 
 .btn-penalty {

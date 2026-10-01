@@ -1,3 +1,5 @@
+import { emptyRubric, normalizeRubric } from './rubric.js'
+
 /**
  * Class profile storage.
  * Logical key: {classId}/{flightId}/{taskCode}
@@ -72,6 +74,7 @@ function emptyRecord(classId, flightId, taskCode) {
     penalties: [],
     studentComments: [],
     operationalComments: [],
+    rubric: emptyRubric(),
     timerStartedAt: null,
     durationMs: null,
     updatedAt: null,
@@ -107,6 +110,7 @@ export function normalizeRecord(raw, classId, flightId, taskCode) {
     penalties: Array.isArray(raw.penalties) ? raw.penalties : [],
     studentComments,
     operationalComments,
+    rubric: normalizeRubric(raw.rubric),
     timerStartedAt: raw.timerStartedAt || null,
     durationMs:
       typeof raw.durationMs === 'number' && Number.isFinite(raw.durationMs)
@@ -184,6 +188,7 @@ export async function buildFlightBackup(classId, flightId) {
       operationalComments: Array.isArray(r.operationalComments)
         ? r.operationalComments
         : [],
+      rubric: normalizeRubric(r.rubric),
       timerStartedAt: r.timerStartedAt || null,
       durationMs: r.durationMs ?? null,
       updatedAt: r.updatedAt || null,
@@ -312,6 +317,7 @@ async function mutateTaskRecord(classId, flightId, taskCode, mutator) {
     penalties: [...current.penalties],
     studentComments: [...current.studentComments],
     operationalComments: [...current.operationalComments],
+    rubric: { ...normalizeRubric(current.rubric) },
   })
   next.path = recordPath(classId, flightId, taskCode)
   next.classId = String(classId).trim().toUpperCase()
@@ -347,6 +353,24 @@ export async function startTaskTimer(classId, flightId, taskCode) {
   return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
     rec.timerStartedAt = new Date().toISOString()
     rec.durationMs = null
+    return rec
+  })
+}
+
+export async function setRubricMark(classId, flightId, taskCode, criterion, level) {
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    const rubric = normalizeRubric(rec.rubric)
+    if (!Object.prototype.hasOwnProperty.call(rubric, criterion)) return rec
+    // Toggle off if the same level is clicked again; otherwise select that level for the row.
+    rubric[criterion] = rubric[criterion] === level ? null : level
+    rec.rubric = rubric
+    return rec
+  })
+}
+
+export async function clearTaskRubric(classId, flightId, taskCode) {
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    rec.rubric = emptyRubric()
     return rec
   })
 }
