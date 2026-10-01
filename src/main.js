@@ -351,7 +351,7 @@ function renderSideMenu() {
           <span class="side-menu-link-title">${state.folderLinked ? 'Folder linked' : 'Link profile folder'}</span>
           <span class="side-menu-link-meta">${canUseFolderApi() ? 'Writes class/flight/task files on this device' : 'Use Chrome/Edge to link a folder'}</span>
         </button>
-        <p class="side-menu-section">Project X Notetakers</p>
+        <p class="side-menu-section">TASK Resources</p>
         <button type="button" class="side-menu-link" data-resource-version="A">
           <span class="side-menu-link-title">Version A</span>
           <span class="side-menu-link-meta">Tasks 1A–22A</span>
@@ -422,7 +422,7 @@ function renderUpload() {
           ${state.error ? `<p class="error" role="alert">${escapeHtml(state.error)}</p>` : ''}
         </div>
       </section>
-      <p class="footer-note">Reads the “Data Entry Matrix” sheet · Use the menu to set class profile and open Version A/B notetakers</p>
+      <p class="footer-note">Reads the “Data Entry Matrix” sheet · Use the menu to set class profile and open Version A/B TASK Resources</p>
     </div>
   `
 }
@@ -689,7 +689,7 @@ function renderTask() {
 
           ${
             note
-              ? `<button type="button" class="btn btn-resource" data-open-notetaker="${note.code}">Open notetaker</button>`
+              ? `<button type="button" class="btn btn-resource" data-open-notetaker="${note.code}">Open TASK Resource</button>`
               : ''
           }
           ${state.statusMessage ? `<p class="status-message">${escapeHtml(state.statusMessage)}</p>` : ''}
@@ -719,9 +719,9 @@ function renderResourcesList() {
     <div class="shell">
       ${topBar(actions)}
       <div class="section-head">
-        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Resources · Notetakers</span>
+        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Resources · TASK Resources</span>
         <h1>Version ${escapeHtml(version)}</h1>
-        <p>Select a task image to view the full notetaker slide.</p>
+        <p>Select a task image to view the full TASK Resource.</p>
       </div>
       <div class="resource-grid">${cards}</div>
     </div>
@@ -739,7 +739,7 @@ function renderResourcesView() {
     <div class="shell">
       ${topBar(actions)}
       <div class="section-head">
-        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Version ${escapeHtml(note.code.slice(-1))} notetaker</span>
+        <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Version ${escapeHtml(note.code.slice(-1))} TASK Resource</span>
         <h1>${escapeHtml(note.code)} · ${escapeHtml(note.title)}</h1>
       </div>
       <figure class="resource-viewer">
