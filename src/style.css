@@ -1312,6 +1312,19 @@ body::before {
   width: 100%;
 }
 
+[data-theme='light'] .btn-comment-submit {
+  background: #1e90ff;
+  border-color: #5eb0ff;
+  color: #ffffff;
+}
+
+[data-theme='light'] .btn-comment-submit:hover,
+[data-theme='light'] .btn-comment-submit:active {
+  background: #3aa0ff;
+  border-color: #8fc8ff;
+  color: #ffffff;
+}
+
 .recorded-list {
   list-style: none;
   margin: 0.75rem 0 0;
