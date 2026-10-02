@@ -35,6 +35,10 @@
   --slot-bg: rgba(0, 20, 48, 0.55);
   --inset-bg: rgba(0, 12, 32, 0.35);
   --chrome-blue: rgba(12, 48, 96, 0.75);
+  --finalize-bg: #0a3d91;
+  --finalize-bg-hover: #1454b8;
+  --finalize-border: #3d6fb8;
+  --finalize-text: #f2f6fc;
   --hero-text-shadow: 0 8px 40px rgba(0, 20, 60, 0.65);
 }
 
@@ -69,6 +73,10 @@
   --slot-bg: rgba(255, 255, 255, 0.72);
   --inset-bg: rgba(18, 40, 72, 0.06);
   --chrome-blue: rgba(30, 80, 140, 0.12);
+  --finalize-bg: #1e5bb0;
+  --finalize-bg-hover: #2a6fd0;
+  --finalize-border: #4a84c8;
+  --finalize-text: #ffffff;
   --hero-text-shadow: 0 4px 18px rgba(40, 70, 120, 0.12);
 }
 
@@ -965,15 +973,16 @@ body::before {
   width: 100%;
   min-height: 52px;
   font-size: 1.05rem;
-  border-color: rgba(197, 179, 88, 0.65);
-  background: var(--chrome-blue);
-  color: var(--af-gold-bright);
+  border-color: var(--finalize-border);
+  background: var(--finalize-bg);
+  color: var(--finalize-text);
 }
 
 .btn-finalize:hover:not(:disabled),
 .btn-finalize:active:not(:disabled) {
-  border-color: var(--af-gold-bright);
-  background: rgba(20, 70, 130, 0.95);
+  border-color: var(--finalize-border);
+  background: var(--finalize-bg-hover);
+  color: var(--finalize-text);
 }
 
 .btn-finalize:disabled {
