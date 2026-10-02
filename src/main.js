@@ -22,6 +22,7 @@ import {
   clearTaskPenalties,
   clearTaskRubric,
   downloadFlightBackup,
+  buildFlightBackup,
   formatDuration,
   getClassId,
   getTaskElapsedMs,
@@ -448,7 +449,7 @@ function topBar(extraActions = '') {
     <header class="topbar">
       <div class="brand-mark">
         <span class="eyebrow">Squadron Officer School</span>
-      </div>
+  </div>
       <div class="nav-actions">${backBtn}${classChip}${extraActions}</div>
     </header>
   `
@@ -764,10 +765,10 @@ function renderSchedule() {
       ${topBar(actions)}
       <div class="schedule-hero">
         <img src="${asset(sq.logo)}" alt="${escapeHtml(sq.name)} logo" />
-        <div>
+  <div>
           <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">${escapeHtml(sq.unit)} · ${escapeHtml(sq.motto)}</span>
           <h1>Flight ${escapeHtml(flight.displayId)}</h1>
-          <p class="sub">Tap a task to grade, log penalties, and add comments. Progress auto-saves in this browser for the full session. After each task, use Finalize to download a backup; download a Phase I or Phase II Flight Report for the Excel export.</p>
+          <p class="sub">Tap a task to grade, log penalties, and add comments. Progress auto-saves in this browser. On each task page, a backup file downloads every 2 minutes when data changes. Use Finalize for an immediate backup; use Download Phase Report for Excel.</p>
           <div class="flight-report-actions">
             <button type="button" class="btn btn-primary btn-flight-report" data-action="download-flight-report" data-phase="1">
               Download Phase I Report
@@ -775,7 +776,7 @@ function renderSchedule() {
             <button type="button" class="btn btn-primary btn-flight-report" data-action="download-flight-report" data-phase="2">
               Download Phase II Report
             </button>
-          </div>
+  </div>
         </div>
       </div>
 
@@ -788,7 +789,7 @@ function renderSchedule() {
           <span class="day">Day 1</span>
         </header>
         ${renderTaskRail(flight.phase1, 'phase1')}
-      </section>
+</section>
 
       <section class="phase-block">
         <header>
@@ -933,11 +934,11 @@ function renderTask() {
                         </li>`,
                       )
                       .join('')}
-                  </ul>
+    </ul>
                   <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-penalties">Clear penalties</button>`
                 : ''
             }
-          </div>
+  </div>
 
           ${renderRubric(rubric)}
 
@@ -948,7 +949,7 @@ function renderTask() {
             <button type="button" class="btn btn-finalize" data-action="finalize-task" ${canFinalize ? '' : 'disabled'}>
               Finalize &amp; download backup
             </button>
-            <p class="finalize-hint">Downloads all progress so far for class ${escapeHtml(state.classId || '—')} / flight ${escapeHtml(state.flightId || '—')}. Use Restore backup in the menu if anything is lost.</p>
+            <p class="finalize-hint">While you stay on this task page, a backup downloads automatically every 2 minutes when scoring data changes. Finalize also downloads now and returns to the schedule. Use Restore backup in the menu if anything is lost.</p>
           </div>
 
           ${state.statusMessage ? `<p class="status-message">${escapeHtml(state.statusMessage)}</p>` : ''}
@@ -1038,11 +1039,11 @@ function renderCommentSection(kind, title, placeholder, comments) {
                   </li>`,
                 )
                 .join('')}
-            </ul>
+    </ul>
             <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-comments" data-comment-kind="${kind}">Clear comments</button>`
           : ''
       }
-    </div>
+  </div>
   `
 }
 
@@ -1501,6 +1502,65 @@ function bindTaskActions() {
   })
   if (state.taskRecord?.timerStartedAt) startTimerTick()
   else stopTimerTick()
+  startAutoBackupWatch()
+}
+
+const AUTO_BACKUP_INTERVAL_MS = 2 * 60 * 1000
+let autoBackupTimerId = null
+let autoBackupBusy = false
+let lastAutoBackupSig = ''
+
+function backupSignature(backup) {
+  return JSON.stringify(backup?.records || [])
+}
+
+function stopAutoBackupWatch() {
+  if (autoBackupTimerId != null) {
+    clearInterval(autoBackupTimerId)
+    autoBackupTimerId = null
+  }
+}
+
+function startAutoBackupWatch() {
+  stopAutoBackupWatch()
+  if (state.step !== 'task') return
+  autoBackupTimerId = setInterval(() => {
+    void runAutoBackup()
+  }, AUTO_BACKUP_INTERVAL_MS)
+}
+
+async function runAutoBackup() {
+  if (autoBackupBusy || state.step !== 'task') return
+  const classId = state.classId || getClassId()
+  const flightId = state.flightId
+  if (!classId || !flightId) return
+
+  autoBackupBusy = true
+  try {
+    const snapshot = await buildFlightBackup(classId, flightId)
+    const sig = backupSignature(snapshot)
+    if (!sig || sig === '[]' || sig === lastAutoBackupSig) return
+
+    const result = await downloadFlightBackup(classId, flightId)
+    lastAutoBackupSig = sig
+    state.statusMessage = `Auto-backup downloaded · ${result.filename}`
+    const el = app.querySelector('.status-message')
+    if (el) {
+      el.textContent = state.statusMessage
+    } else {
+      const panel = app.querySelector('.grade-panel')
+      if (panel) {
+        const p = document.createElement('p')
+        p.className = 'status-message'
+        p.textContent = state.statusMessage
+        panel.appendChild(p)
+      }
+    }
+  } catch {
+    /* Keep scoring uninterrupted if a quiet backup download fails. */
+  } finally {
+    autoBackupBusy = false
+  }
 }
 
 async function finalizeTask() {
@@ -1516,7 +1576,10 @@ async function finalizeTask() {
     return
   }
   try {
+    const snapshot = await buildFlightBackup(classId, state.flightId)
     const result = await downloadFlightBackup(classId, state.flightId)
+    lastAutoBackupSig = backupSignature(snapshot)
+    stopAutoBackupWatch()
     state.activeTask = null
     state.taskRecord = null
     state.menuOpen = false
@@ -1645,6 +1708,8 @@ function bindLock() {
 
 function render() {
   if (!state.unlocked) {
+    stopAutoBackupWatch()
+    stopTimerTick()
     app.innerHTML = renderLock()
     bindLock()
     return
@@ -1660,12 +1725,15 @@ function render() {
   else if (state.step === 'resources-list') html = renderResourcesList()
   else if (state.step === 'resources-view') html = renderResourcesView()
 
+  if (state.step !== 'task') stopAutoBackupWatch()
+
   app.innerHTML = `${renderSideMenu()}${html}`
 
   if (state.step === 'upload') bindUpload(app)
   if (state.step === 'class-profile') bindClassProfile()
   bindChrome()
   if (state.step === 'task') bindTaskActions()
+  else stopTimerTick()
 
   app.querySelectorAll('[data-action="reset"]').forEach((el) => {
     el.addEventListener('click', resetToUpload)
