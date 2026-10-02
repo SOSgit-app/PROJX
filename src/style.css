@@ -1037,19 +1037,19 @@ body::before {
   min-height: 52px;
   font-size: 1.05rem;
   font-weight: 700;
-  border-color: var(--finalize-border);
-  background: linear-gradient(180deg, #4aa3ff 0%, var(--finalize-bg) 55%, #1578e6 100%);
-  color: var(--finalize-text);
+  border-color: rgba(90, 160, 255, 0.75);
+  background: #1e6fd9;
+  color: #ffffff;
   opacity: 1;
-  box-shadow: 0 6px 18px rgba(30, 144, 255, 0.35);
+  box-shadow: none;
 }
 
 .btn-finalize:hover:not(:disabled),
 .btn-finalize:active:not(:disabled) {
   border-color: #9fd0ff;
-  background: linear-gradient(180deg, #6bb4ff 0%, var(--finalize-bg-hover) 55%, #1e90ff 100%);
+  background: #2b84f0;
   color: #ffffff;
-  box-shadow: 0 8px 22px rgba(30, 144, 255, 0.45);
+  box-shadow: none;
 }
 
 .btn-finalize:disabled {
@@ -1057,6 +1057,19 @@ body::before {
   cursor: not-allowed;
   box-shadow: none;
   filter: grayscale(0.25);
+}
+
+[data-theme='light'] .btn-finalize {
+  background: #1e90ff;
+  border-color: #5eb0ff;
+  color: #ffffff;
+}
+
+[data-theme='light'] .btn-finalize:hover:not(:disabled),
+[data-theme='light'] .btn-finalize:active:not(:disabled) {
+  background: #3aa0ff;
+  border-color: #8fc8ff;
+  color: #ffffff;
 }
 
 .finalize-hint {
