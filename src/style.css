@@ -753,6 +753,10 @@ body::before {
   text-align: center;
 }
 
+.task-section-center .grade-label {
+  text-align: left;
+}
+
 .task-section .grade-label {
   margin-bottom: 0.55rem;
 }
