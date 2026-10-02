@@ -39,7 +39,42 @@ import {
 } from './profile.js'
 
 const AUTH_KEY = 'projx-auth-v1'
+const THEME_KEY = 'projx-theme-v1'
 const APP_PASSWORD = 'redpants1950'
+
+function readStoredTheme() {
+  try {
+    const stored = localStorage.getItem(THEME_KEY)
+    if (stored === 'light' || stored === 'dark') return stored
+  } catch {
+    /* ignore */
+  }
+  return 'dark'
+}
+
+function applyTheme(theme) {
+  const next = theme === 'light' ? 'light' : 'dark'
+  document.documentElement.setAttribute('data-theme', next)
+  try {
+    localStorage.setItem(THEME_KEY, next)
+  } catch {
+    /* ignore */
+  }
+  return next
+}
+
+function getTheme() {
+  const attr = document.documentElement.getAttribute('data-theme')
+  return attr === 'light' ? 'light' : 'dark'
+}
+
+function toggleTheme() {
+  const next = getTheme() === 'light' ? 'dark' : 'light'
+  applyTheme(next)
+  return next
+}
+
+applyTheme(readStoredTheme())
 
 function isUnlocked() {
   try {
@@ -421,6 +456,10 @@ function topBar(extraActions = '') {
 
 function renderSideMenu() {
   const open = state.menuOpen
+  const theme = getTheme()
+  const themeLabel = theme === 'light' ? 'Dark mode' : 'Light mode'
+  const themeMeta =
+    theme === 'light' ? 'Switch to the dark Air Force look' : 'Switch to a brighter daylight look'
   return `
     <button
       type="button"
@@ -442,6 +481,11 @@ function renderSideMenu() {
         <button type="button" class="side-menu-close-btn" data-action="close-menu">Close</button>
       </div>
       <nav class="side-menu-nav" aria-label="Resources">
+        <p class="side-menu-section">Appearance</p>
+        <button type="button" class="side-menu-link" data-action="toggle-theme" aria-pressed="${theme === 'light' ? 'true' : 'false'}">
+          <span class="side-menu-link-title">${escapeHtml(themeLabel)}</span>
+          <span class="side-menu-link-meta">${escapeHtml(themeMeta)}</span>
+        </button>
         <p class="side-menu-section">Class profile</p>
         <button type="button" class="side-menu-link" data-action="set-class">
           <span class="side-menu-link-title">${state.classId ? escapeHtml(state.classId) : 'Set class'}</span>
@@ -1067,6 +1111,14 @@ function bindChrome() {
   })
   app.querySelectorAll('[data-action="close-menu"]').forEach((el) => {
     el.addEventListener('click', () => setState({ menuOpen: false }))
+  })
+  app.querySelectorAll('[data-action="toggle-theme"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const next = toggleTheme()
+      setState({
+        statusMessage: next === 'light' ? 'Light mode on' : 'Dark mode on',
+      })
+    })
   })
   app.querySelectorAll('[data-resource-version]').forEach((el) => {
     el.addEventListener('click', () => openResources(el.dataset.resourceVersion))
