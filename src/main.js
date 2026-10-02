@@ -41,6 +41,7 @@ import {
 
 const AUTH_KEY = 'projx-auth-v1'
 const THEME_KEY = 'projx-theme-v1'
+const SESSION_KEY = 'projx-last-session-v1'
 const APP_PASSWORD = 'redpants1950'
 
 function readStoredTheme() {
@@ -76,6 +77,86 @@ function toggleTheme() {
 }
 
 applyTheme(readStoredTheme())
+
+function saveLastSession() {
+  if (!state.workbook?.flights?.length || !state.flightId || !state.classId) return
+  try {
+    localStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({
+        classId: state.classId,
+        fileName: state.fileName || '',
+        squadronId: state.squadronId,
+        flightId: state.flightId,
+        workbook: state.workbook,
+        savedAt: new Date().toISOString(),
+      }),
+    )
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function readLastSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    if (!data?.classId || !data?.flightId || !Array.isArray(data?.workbook?.flights)) {
+      return null
+    }
+    const flightOk = data.workbook.flights.some(
+      (f) => String(f?.id || '').toUpperCase() === String(data.flightId).toUpperCase(),
+    )
+    return flightOk ? data : null
+  } catch {
+    return null
+  }
+}
+
+function clearLastSession() {
+  try {
+    localStorage.removeItem(SESSION_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function resumeLastSchedule() {
+  const session = readLastSession()
+  if (!session) {
+    setState({
+      statusMessage: 'No saved schedule found. Upload the matrix again.',
+      error: '',
+    })
+    return
+  }
+  try {
+    setClassId(session.classId)
+    state.classId = session.classId
+    state.workbook = session.workbook
+    state.fileName = session.fileName || session.workbook.fileLabel || ''
+    state.squadronId = session.squadronId || null
+    state.flightId = session.flightId
+    state.activeTask = null
+    state.taskRecord = null
+    state.menuOpen = false
+    state.resourceVersion = null
+    state.resourceCode = null
+    state.returnStep = 'schedule'
+    state.error = ''
+    state.step = 'schedule'
+    state.statusMessage = `Resumed class ${session.classId} · flight ${session.flightId}`
+    await preloadFlightRecords()
+    saveLastSession()
+    render()
+  } catch (err) {
+    setState({
+      error: err.message || 'Could not resume the last schedule. Upload the matrix again.',
+      step: 'upload',
+    })
+  }
+}
 
 function isUnlocked() {
   try {
@@ -541,6 +622,10 @@ function renderLock() {
 function renderUpload() {
   const currentClass = state.classId || getClassId()
   const classReady = Boolean(currentClass)
+  const lastSession = readLastSession()
+  const resumeLabel = lastSession
+    ? `Return to last schedule · ${lastSession.classId} / ${lastSession.flightId}`
+    : ''
   return `
     <div class="shell">
       ${topBar()}
@@ -559,10 +644,19 @@ function renderUpload() {
             <span>Instructor View</span>
           </div>
           ${
+            lastSession
+              ? `<div class="hero-actions">
+            <button type="button" class="btn btn-primary hero-start-btn" data-action="resume-last-schedule">
+              ${escapeHtml(resumeLabel)}
+            </button>
+          </div>`
+              : ''
+          }
+          ${
             classReady
               ? ''
               : `<div class="hero-actions">
-            <button type="button" class="btn btn-primary hero-start-btn" data-action="start-new-class">
+            <button type="button" class="btn ${lastSession ? '' : 'btn-primary'} hero-start-btn" data-action="start-new-class">
               Start new class
             </button>
           </div>`
@@ -587,13 +681,16 @@ function renderUpload() {
               ? `<button type="button" class="btn hero-restart-btn" data-action="start-new-class">Start a different class</button>`
               : ''
           }
+          ${state.statusMessage && state.step === 'upload' ? `<p class="status-message">${escapeHtml(state.statusMessage)}</p>` : ''}
           ${state.error ? `<p class="error" role="alert">${escapeHtml(state.error)}</p>` : ''}
         </div>
       </section>
       <p class="footer-note">${
-        classReady
-          ? 'Next: choose squadron, then the flight for this class session'
-          : 'Recommended: Start new class → name the class → upload matrix → pick squadron and flight'
+        lastSession
+          ? 'Refresh-safe: use Return to last schedule to pick up where you left off, or upload a matrix for a new session.'
+          : classReady
+            ? 'Next: choose squadron, then the flight for this class session'
+            : 'Recommended: Start new class → name the class → upload matrix → pick squadron and flight'
       }</p>
     </div>
   `
@@ -1586,6 +1683,7 @@ async function finalizeTask() {
     state.step = 'schedule'
     state.statusMessage = `Backup saved: ${result.filename} (${result.taskCount} task${result.taskCount === 1 ? '' : 's'} for ${result.classId} / flight ${result.flightId}).`
     await preloadFlightRecords()
+    saveLastSession()
     render()
   } catch (err) {
     setState({ statusMessage: err.message || 'Could not create backup.' })
@@ -1635,6 +1733,7 @@ async function bootstrapStepData() {
 }
 
 function startNewClass() {
+  clearLastSession()
   setState({
     step: 'class-profile',
     workbook: null,
@@ -1746,6 +1845,11 @@ function render() {
   app.querySelectorAll('[data-action="start-new-class"]').forEach((el) => {
     el.addEventListener('click', startNewClass)
   })
+  app.querySelectorAll('[data-action="resume-last-schedule"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      void resumeLastSchedule()
+    })
+  })
   app.querySelectorAll('[data-action="download-flight-report"]').forEach((el) => {
     el.addEventListener('click', () => downloadCurrentFlightReport(el.dataset.phase || '1'))
   })
@@ -1770,6 +1874,7 @@ function render() {
       requireClassId()
       state.classId = getClassId()
       await preloadFlightRecords()
+      saveLastSession()
       render()
     })
   })
@@ -1785,6 +1890,7 @@ function render() {
       requireClassId()
       state.classId = getClassId()
       await refreshTaskRecord()
+      saveLastSession()
       render()
     })
   })

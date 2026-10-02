@@ -838,9 +838,9 @@ body::before {
   width: 100%;
   min-height: 48px;
   margin-bottom: 0.35rem;
-  border-color: rgba(197, 179, 88, 0.55);
-  background: var(--chrome-blue);
-  color: var(--af-gold-bright);
+  border-color: rgba(90, 160, 255, 0.75);
+  background: #1e6fd9;
+  color: #ffffff;
 }
 
 .timer-actions {
@@ -872,20 +872,48 @@ body::before {
 
 .btn-timer:hover:not(:disabled),
 .btn-timer:active:not(:disabled) {
-  border-color: var(--af-gold-bright);
-  background: rgba(20, 70, 130, 0.9);
+  border-color: #9fd0ff;
+  background: #2b84f0;
+  color: #ffffff;
 }
 
 .btn-timer-pause:hover:not(:disabled),
 .btn-timer-pause:active:not(:disabled) {
   border-color: #f0d878;
   background: rgba(70, 55, 12, 0.75);
+  color: #f0d878;
 }
 
 .btn-timer-restart:hover:not(:disabled),
 .btn-timer-restart:active:not(:disabled) {
   border-color: #d8e6f8;
   background: rgba(24, 56, 104, 0.9);
+  color: #ffffff;
+}
+
+[data-theme='light'] .btn-timer {
+  background: #1e90ff;
+  border-color: #5eb0ff;
+  color: #ffffff;
+}
+
+[data-theme='light'] .btn-timer:hover:not(:disabled),
+[data-theme='light'] .btn-timer:active:not(:disabled) {
+  background: #3aa0ff;
+  border-color: #8fc8ff;
+  color: #ffffff;
+}
+
+[data-theme='light'] .btn-timer-pause {
+  background: #5c4a12;
+  border-color: #c9a227;
+  color: #ffffff;
+}
+
+[data-theme='light'] .btn-timer-restart {
+  background: #245a9e;
+  border-color: #6a9fd4;
+  color: #ffffff;
 }
 
 .timer-actions .btn-timer:disabled {
