@@ -55,15 +55,29 @@ export function notetakersForVersion(version) {
   return NOTETAKERS[key] || []
 }
 
+/** Normalize matrix / UI task codes to notetaker ids like 1A, 12B. */
+export function normalizeTaskCode(code) {
+  const raw = String(code || '').trim().toUpperCase()
+  if (!raw) return ''
+  const stripped = raw.replace(/^TASK\s*/i, '').replace(/\s+/g, '')
+  const match = stripped.match(/(\d{1,2}[AB])\b/) || raw.match(/(\d{1,2}[AB])\b/)
+  return match ? match[1] : stripped
+}
+
 export function findNotetaker(code) {
-  const normalized = String(code || '')
-    .trim()
-    .toUpperCase()
-    .replace(/^TASK\s*/i, '')
+  const normalized = normalizeTaskCode(code)
   if (!normalized) return null
   return (
     [...NOTETAKERS.A, ...NOTETAKERS.B].find(
       (n) => n.code === normalized || n.id === normalized,
     ) || null
   )
+}
+
+export function taskDisplayName(code) {
+  const note = findNotetaker(code)
+  const normalized = normalizeTaskCode(code) || String(code || '').trim().toUpperCase()
+  if (!normalized) return ''
+  if (note?.title) return `${normalized}: ${note.title}`
+  return normalized
 }

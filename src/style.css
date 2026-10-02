@@ -703,6 +703,27 @@ body::before {
   line-height: 0.95;
 }
 
+.task-screen-hero h1.task-title {
+  display: grid;
+  gap: 0.25rem;
+  text-transform: none;
+  line-height: 1.05;
+}
+
+.task-title-code {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.task-title-name {
+  font-size: 0.55em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--af-gold-bright);
+  text-transform: none;
+  line-height: 1.2;
+}
+
 .task-screen-hero .sub {
   margin: 0.4rem 0 0;
   color: var(--af-muted);

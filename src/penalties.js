@@ -272,7 +272,9 @@ export const TASK_PENALTIES = {
   ],
 }
 
+import { normalizeTaskCode } from './notetakers.js'
+
 export function penaltiesForTask(taskCode) {
-  const code = String(taskCode || '').trim().toUpperCase()
+  const code = normalizeTaskCode(taskCode)
   return TASK_PENALTIES[code] || []
 }

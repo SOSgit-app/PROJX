@@ -5,7 +5,7 @@ import {
   flightsForSquadron,
   squadronForFlightId,
 } from './squadrons.js'
-import { findNotetaker, notetakersForVersion } from './notetakers.js'
+import { findNotetaker, normalizeTaskCode, notetakersForVersion } from './notetakers.js'
 import { penaltiesForTask } from './penalties.js'
 import { downloadFlightReport } from './report.js'
 import {
@@ -673,15 +673,19 @@ function renderTaskRail(tasks, phase) {
         .map((t, index) => {
           const result = cachedResult(t.task)
           const statusClass = result ? ` is-${result}` : ''
+          const note = findNotetaker(t.task)
+          const code = normalizeTaskCode(t.task) || t.task
+          const label = note?.title ? `${code}: ${note.title}` : code
           return `
         <button
           type="button"
           class="task-slot${statusClass}"
           data-open-task="${phase}:${index}"
-          aria-label="Open task ${escapeHtml(t.task)}, order ${t.order ?? 'unspecified'}${result ? `, ${result}` : ''}"
+          title="${escapeHtml(label)}"
+          aria-label="Open task ${escapeHtml(label)}, order ${t.order ?? 'unspecified'}${result ? `, ${result}` : ''}"
         >
           <span class="order">Order ${t.order ?? '—'}</span>
-          <span class="code">${escapeHtml(t.task)}</span>
+          <span class="code">${escapeHtml(code)}</span>
           <span class="status-badge">${escapeHtml(resultLabel(result))}</span>
         </button>
       `
@@ -811,11 +815,14 @@ function renderTask() {
           <img src="${asset(sq.logo)}" alt="${escapeHtml(sq.name)} logo" />
           <div>
             <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Flight ${escapeHtml(flight.displayId)} · ${escapeHtml(task.phaseLabel)} · ${escapeHtml(task.dayLabel)}</span>
-            <h1>${
-              note?.title
-                ? `${escapeHtml(task.task)} · ${escapeHtml(note.title)}`
-                : `Task ${escapeHtml(task.task)}`
-            }</h1>
+            <h1 class="task-title">
+              <span class="task-title-code">Task ${escapeHtml(normalizeTaskCode(task.task) || task.task)}</span>
+              ${
+                note?.title
+                  ? `<span class="task-title-name">${escapeHtml(note.title)}</span>`
+                  : ''
+              }
+            </h1>
             <p class="sub">Order ${task.order ?? '—'} · Auto-saves in this browser</p>
           </div>
         </div>
