@@ -56,6 +56,14 @@ export function notetakersForVersion(version) {
 }
 
 export function findNotetaker(code) {
-  const normalized = String(code || '').trim().toUpperCase()
-  return [...NOTETAKERS.A, ...NOTETAKERS.B].find((n) => n.code === normalized) || null
+  const normalized = String(code || '')
+    .trim()
+    .toUpperCase()
+    .replace(/^TASK\s*/i, '')
+  if (!normalized) return null
+  return (
+    [...NOTETAKERS.A, ...NOTETAKERS.B].find(
+      (n) => n.code === normalized || n.id === normalized,
+    ) || null
+  )
 }

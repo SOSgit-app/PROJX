@@ -811,7 +811,11 @@ function renderTask() {
           <img src="${asset(sq.logo)}" alt="${escapeHtml(sq.name)} logo" />
           <div>
             <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Flight ${escapeHtml(flight.displayId)} · ${escapeHtml(task.phaseLabel)} · ${escapeHtml(task.dayLabel)}</span>
-            <h1>Task ${escapeHtml(task.task)}</h1>
+            <h1>${
+              note?.title
+                ? `${escapeHtml(task.task)} · ${escapeHtml(note.title)}`
+                : `Task ${escapeHtml(task.task)}`
+            }</h1>
             <p class="sub">Order ${task.order ?? '—'} · Auto-saves in this browser</p>
           </div>
         </div>
