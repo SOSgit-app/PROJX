@@ -564,15 +564,9 @@ body::before {
 }
 
 .btn-flight-report {
-  margin-top: 0;
+  width: 100%;
+  margin-top: 1rem;
   min-height: 48px;
-}
-
-.flight-report-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.55rem;
-  margin-top: 0.95rem;
 }
 
 .schedule-status {
@@ -1892,11 +1886,6 @@ body::before {
     grid-template-columns: 1fr;
     text-align: center;
     justify-items: center;
-  }
-
-  .flight-report-actions {
-    grid-template-columns: 1fr;
-    width: 100%;
   }
 
   .task-screen-hero {

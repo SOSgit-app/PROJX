@@ -865,15 +865,7 @@ function renderSchedule() {
   <div>
           <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">${escapeHtml(sq.unit)} · ${escapeHtml(sq.motto)}</span>
           <h1>Flight ${escapeHtml(flight.displayId)}</h1>
-          <p class="sub">Tap a task to grade, log penalties, and add comments. Progress auto-saves in this browser. On each task page, a backup file downloads every 2 minutes when data changes. Use Finalize for an immediate backup; use Download Phase Report for Excel.</p>
-          <div class="flight-report-actions">
-            <button type="button" class="btn btn-primary btn-flight-report" data-action="download-flight-report" data-phase="1">
-              Download Phase I Report
-            </button>
-            <button type="button" class="btn btn-primary btn-flight-report" data-action="download-flight-report" data-phase="2">
-              Download Phase II Report
-            </button>
-  </div>
+          <p class="sub">Tap a task to grade, log penalties, and add comments. Progress auto-saves in this browser. On each task page, a backup file downloads every 2 minutes when data changes. Use Finalize for an immediate backup; download each phase report from the Phase I / Phase II sections below.</p>
         </div>
       </div>
 
@@ -886,7 +878,10 @@ function renderSchedule() {
           <span class="day">Day 1</span>
         </header>
         ${renderTaskRail(flight.phase1, 'phase1')}
-</section>
+        <button type="button" class="btn btn-primary btn-flight-report" data-action="download-flight-report" data-phase="1">
+          Download Phase I Report
+        </button>
+      </section>
 
       <section class="phase-block">
         <header>
@@ -897,6 +892,9 @@ function renderSchedule() {
           <span class="day">Day 2</span>
         </header>
         ${renderTaskRail(flight.phase2, 'phase2')}
+        <button type="button" class="btn btn-primary btn-flight-report" data-action="download-flight-report" data-phase="2">
+          Download Phase II Report
+        </button>
       </section>
       ${state.statusMessage && state.step === 'schedule' ? `<p class="status-message schedule-status">${escapeHtml(state.statusMessage)}</p>` : ''}
     </div>
