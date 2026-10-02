@@ -824,6 +824,11 @@ function renderTask() {
               }
             </h1>
             <p class="sub">Order ${task.order ?? '—'} · Auto-saves in this browser</p>
+            ${
+              note
+                ? `<button type="button" class="btn btn-resource btn-resource-top" data-open-notetaker="${note.code}">Open TASK Resource</button>`
+                : ''
+            }
           </div>
         </div>
 
@@ -894,12 +899,6 @@ function renderTask() {
 
           ${renderCommentSection('student', 'Student Related Comments', 'Add a student-related comment', studentComments)}
           ${renderCommentSection('operational', 'Operational/Equipment Comments', 'Add an operational or equipment comment', operationalComments)}
-
-          ${
-            note
-              ? `<button type="button" class="btn btn-resource" data-open-notetaker="${note.code}">Open TASK Resource</button>`
-              : ''
-          }
 
           <div class="finalize-block">
             <button type="button" class="btn btn-finalize" data-action="finalize-task" ${canFinalize ? '' : 'disabled'}>

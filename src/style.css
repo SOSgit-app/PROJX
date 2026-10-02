@@ -895,6 +895,17 @@ body::before {
   border-color: rgba(197, 179, 88, 0.45);
 }
 
+.btn-resource-top {
+  width: auto;
+  max-width: 100%;
+  margin-top: 0.75rem;
+  min-height: 44px;
+}
+
+.task-screen-hero .btn-resource-top {
+  justify-self: start;
+}
+
 .finalize-block {
   margin-top: 1.25rem;
   padding-top: 1rem;
