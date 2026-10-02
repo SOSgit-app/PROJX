@@ -953,29 +953,31 @@ function renderTask() {
     <div class="shell">
       ${topBar(actions)}
       <div class="task-screen">
-        <div class="task-screen-hero">
-          <img src="${asset(sq.logo)}" alt="${escapeHtml(sq.name)} logo" />
-          <div>
-            <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Flight ${escapeHtml(flight.displayId)} · ${escapeHtml(task.phaseLabel)} · ${escapeHtml(task.dayLabel)}</span>
-            <h1 class="task-title">
-              <span class="task-title-code">Task ${escapeHtml(normalizeTaskCode(task.task) || task.task)}</span>
+        <section class="task-section task-section-hero">
+          <div class="task-screen-hero">
+            <img src="${asset(sq.logo)}" alt="${escapeHtml(sq.name)} logo" />
+            <div>
+              <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Flight ${escapeHtml(flight.displayId)} · ${escapeHtml(task.phaseLabel)} · ${escapeHtml(task.dayLabel)}</span>
+              <h1 class="task-title">
+                <span class="task-title-code">Task ${escapeHtml(normalizeTaskCode(task.task) || task.task)}</span>
+                ${
+                  note?.title
+                    ? `<span class="task-title-name">${escapeHtml(note.title)}</span>`
+                    : ''
+                }
+              </h1>
+              <p class="sub">Order ${task.order ?? '—'} · Auto-saves in this browser</p>
               ${
-                note?.title
-                  ? `<span class="task-title-name">${escapeHtml(note.title)}</span>`
+                note
+                  ? `<button type="button" class="btn btn-resource btn-resource-top" data-open-notetaker="${note.code}">Open TASK Resource</button>`
                   : ''
               }
-            </h1>
-            <p class="sub">Order ${task.order ?? '—'} · Auto-saves in this browser</p>
-            ${
-              note
-                ? `<button type="button" class="btn btn-resource btn-resource-top" data-open-notetaker="${note.code}">Open TASK Resource</button>`
-                : ''
-            }
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div class="grade-panel">
-          <p class="grade-label">Task timer</p>
+        <section class="task-section task-section-center" aria-labelledby="task-timer-heading">
+          <p class="grade-label" id="task-timer-heading">Task timer</p>
           <p class="timer-display" id="task-timer-display">${escapeHtml(formatDuration(elapsedMs))}</p>
           <div class="timer-actions">
             <button type="button" class="btn btn-timer" data-action="start-timer" ${timerRunning ? 'disabled' : ''}>
@@ -988,69 +990,71 @@ function renderTask() {
               Restart timer
             </button>
           </div>
+        </section>
 
-          <p class="grade-label grade-label-spaced">Instructor result</p>
+        <section class="task-section task-section-center" aria-labelledby="task-result-heading">
+          <p class="grade-label" id="task-result-heading">Instructor result</p>
           <p class="grade-current is-${result || 'none'}">${escapeHtml(resultLabel(result))}</p>
           <div class="grade-actions">
             <button type="button" class="btn btn-complete${result === 'complete' ? ' is-selected' : ''}" data-grade="complete">Complete</button>
             <button type="button" class="btn btn-incomplete${result === 'incomplete' ? ' is-selected' : ''}" data-grade="incomplete">Incomplete</button>
           </div>
           <button type="button" class="btn btn-clear" data-grade="clear" ${result || record?.durationMs != null || timerRunning || timerPaused ? '' : 'disabled'}>Clear result</button>
+        </section>
 
-          <div class="penalty-block">
-            <p class="grade-label">Penalties</p>
-            <div class="penalty-list" role="list">
-              ${
-                penaltyOptions.length
-                  ? penaltyOptions
-                      .map(
-                        (p, i) => `
-                <button type="button" class="penalty-option tone-${escapeHtml(p.tone || 'other')}" data-record-penalty="${i}" role="listitem" title="${escapeHtml(p.detail || p.label)}">
-                  <span class="penalty-label">${escapeHtml(p.label)}</span>
-                </button>`,
-                      )
-                      .join('')
-                  : '<p class="empty-phase">No penalty list found for this task code.</p>'
-              }
-            </div>
+        <section class="task-section" aria-labelledby="task-penalties-heading">
+          <p class="grade-label" id="task-penalties-heading">Penalties</p>
+          <div class="penalty-list" role="list">
             ${
-              recordedPenalties.length
-                ? `<ul class="recorded-list">
-                    ${recordedPenalties
-                      .map(
-                        (p) => `<li class="recorded-item">
-                          <div class="recorded-item-main">
-                            <strong>Penalty</strong> · ${escapeHtml(p.text)}
-                            <span>${escapeHtml(formatWhen(p.recordedAt))}</span>
-                          </div>
-                          <button type="button" class="btn-icon-delete" data-delete-penalty="${escapeHtml(p.id || '')}" aria-label="Delete penalty" title="Delete penalty">
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                              <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                          </button>
-                        </li>`,
-                      )
-                      .join('')}
-    </ul>
-                  <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-penalties">Clear penalties</button>`
-                : ''
+              penaltyOptions.length
+                ? penaltyOptions
+                    .map(
+                      (p, i) => `
+              <button type="button" class="penalty-option tone-${escapeHtml(p.tone || 'other')}" data-record-penalty="${i}" role="listitem" title="${escapeHtml(p.detail || p.label)}">
+                <span class="penalty-label">${escapeHtml(p.label)}</span>
+              </button>`,
+                    )
+                    .join('')
+                : '<p class="empty-phase">No penalty list found for this task code.</p>'
             }
-  </div>
-
-          ${renderRubric(rubric)}
-
-          ${renderCommentSection('student', 'Student Related Comments', 'Add a student-related comment', studentComments)}
-          ${renderCommentSection('operational', 'Operational/Equipment Comments', 'Add an operational or equipment comment', operationalComments)}
-
-          <div class="finalize-block">
-            <button type="button" class="btn btn-finalize" data-action="finalize-task" ${canFinalize ? '' : 'disabled'}>
-              Finalize &amp; download backup
-            </button>
-            <p class="finalize-hint">While you stay on this task page, a backup downloads automatically every 2 minutes when scoring data changes. Finalize also downloads now and returns to the schedule. Use Restore backup in the menu if anything is lost.</p>
           </div>
+          ${
+            recordedPenalties.length
+              ? `<ul class="recorded-list">
+                  ${recordedPenalties
+                    .map(
+                      (p) => `<li class="recorded-item">
+                        <div class="recorded-item-main">
+                          <strong>Penalty</strong> · ${escapeHtml(p.text)}
+                          <span>${escapeHtml(formatWhen(p.recordedAt))}</span>
+                        </div>
+                        <button type="button" class="btn-icon-delete" data-delete-penalty="${escapeHtml(p.id || '')}" aria-label="Delete penalty" title="Delete penalty">
+                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </button>
+                      </li>`,
+                    )
+                    .join('')}
+                </ul>
+                <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-penalties">Clear penalties</button>`
+              : ''
+          }
+        </section>
 
+        ${renderRubric(rubric)}
+
+        ${renderCommentSection('student', 'Student Related Comments', 'Add a student-related comment', studentComments)}
+        ${renderCommentSection('operational', 'Operational/Equipment Comments', 'Add an operational or equipment comment', operationalComments)}
+
+        <section class="task-section" aria-labelledby="task-finalize-heading">
+          <p class="grade-label" id="task-finalize-heading">Backup</p>
+          <button type="button" class="btn btn-finalize" data-action="finalize-task" ${canFinalize ? '' : 'disabled'}>
+            Finalize &amp; download backup
+          </button>
+          <p class="finalize-hint">While you stay on this task page, a backup downloads automatically every 2 minutes when scoring data changes. Finalize also downloads now and returns to the schedule. Use Restore backup in the menu if anything is lost.</p>
           ${state.statusMessage ? `<p class="status-message">${escapeHtml(state.statusMessage)}</p>` : ''}
-        </div>
+        </section>
       </div>
     </div>
   `
@@ -1088,8 +1092,8 @@ function renderRubric(rubric) {
   }).join('')
 
   return `
-    <div class="rubric-block">
-      <p class="grade-label">Rubric</p>
+    <section class="task-section" aria-labelledby="task-rubric-heading">
+      <p class="grade-label" id="task-rubric-heading">Rubric</p>
       <div class="rubric-scroll">
         <table class="rubric-table">
           <thead>
@@ -1108,14 +1112,15 @@ function renderRubric(rubric) {
           ? `<button type="button" class="btn btn-clear btn-clear-list" data-action="clear-rubric">Clear rubric</button>`
           : ''
       }
-    </div>
+    </section>
   `
 }
 
 function renderCommentSection(kind, title, placeholder, comments) {
+  const headingId = `task-comments-${kind}-heading`
   return `
-    <div class="comment-block">
-      <p class="grade-label">${escapeHtml(title)}</p>
+    <section class="task-section" aria-labelledby="${headingId}">
+      <p class="grade-label" id="${headingId}">${escapeHtml(title)}</p>
       <textarea id="task-comment-${kind}" class="comment-input" rows="3" placeholder="${escapeHtml(placeholder)}"></textarea>
       <button type="button" class="btn btn-primary btn-comment-submit" data-action="submit-comment" data-comment-kind="${kind}">Submit comment</button>
       ${
@@ -1136,11 +1141,11 @@ function renderCommentSection(kind, title, placeholder, comments) {
                   </li>`,
                 )
                 .join('')}
-    </ul>
+            </ul>
             <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-comments" data-comment-kind="${kind}">Clear comments</button>`
           : ''
       }
-  </div>
+    </section>
   `
 }
 
@@ -1645,7 +1650,7 @@ async function runAutoBackup() {
     if (el) {
       el.textContent = state.statusMessage
     } else {
-      const panel = app.querySelector('.grade-panel')
+      const panel = app.querySelector('.task-section:last-of-type') || app.querySelector('.task-screen')
       if (panel) {
         const p = document.createElement('p')
         p.className = 'status-message'

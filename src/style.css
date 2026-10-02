@@ -732,8 +732,45 @@ body::before {
 
 .task-screen {
   display: grid;
-  gap: 1.25rem;
+  gap: 0.9rem;
   animation: rise 480ms ease both;
+}
+
+.task-section {
+  background: var(--surface);
+  border: 1px solid rgba(200, 208, 220, 0.2);
+  border-radius: var(--radius);
+  padding: clamp(1rem, 3vw, 1.35rem);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.task-section-hero {
+  padding: clamp(0.85rem, 2.5vw, 1.15rem);
+}
+
+.task-section-center {
+  text-align: center;
+}
+
+.task-section .grade-label {
+  margin-bottom: 0.55rem;
+}
+
+.task-section .status-message {
+  margin-top: 0.85rem;
+}
+
+.task-section .finalize-hint {
+  margin-top: 0.65rem;
+}
+
+.task-section .recorded-list {
+  margin-top: 0.85rem;
+}
+
+.task-section .penalty-list {
+  margin-top: 0.35rem;
 }
 
 .task-screen-hero {
@@ -991,9 +1028,9 @@ body::before {
 }
 
 .finalize-block {
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(200, 208, 220, 0.18);
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
   text-align: left;
 }
 
@@ -1046,7 +1083,7 @@ body::before {
 .penalty-block,
 .comment-block,
 .rubric-block {
-  margin-top: 1rem;
+  margin-top: 0;
   text-align: left;
 }
 
