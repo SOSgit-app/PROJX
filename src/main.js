@@ -1043,12 +1043,12 @@ function renderResourcesView() {
         <span class="eyebrow" style="color:var(--af-gold);font-family:var(--font-display);letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;font-weight:600">Version ${escapeHtml(note.code.slice(-1))} TASK Resource</span>
         <h1>${escapeHtml(note.code)} · ${escapeHtml(note.title)}</h1>
       </div>
-      <figure class="resource-viewer">
-        <img src="${asset(note.file)}" alt="${escapeHtml(note.code)} ${escapeHtml(note.title)}" />
-      </figure>
       <div class="resource-view-actions">
         <button type="button" class="btn btn-primary btn-back-scoring" data-action="close-resources">${escapeHtml(backLabel)}</button>
       </div>
+      <figure class="resource-viewer">
+        <img src="${asset(note.file)}" alt="${escapeHtml(note.code)} ${escapeHtml(note.title)}" />
+      </figure>
     </div>
   `
 }

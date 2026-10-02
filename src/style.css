@@ -1643,7 +1643,7 @@ body::before {
 }
 
 .resource-view-actions {
-  margin-top: 1rem;
+  margin: 0 0 0.85rem;
 }
 
 .btn-back-scoring {
