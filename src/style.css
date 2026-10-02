@@ -1803,6 +1803,19 @@ body::before {
   min-height: 48px;
 }
 
+[data-theme='light'] .btn-back-scoring {
+  background: #1e90ff;
+  border-color: #5eb0ff;
+  color: #ffffff;
+}
+
+[data-theme='light'] .btn-back-scoring:hover,
+[data-theme='light'] .btn-back-scoring:active {
+  background: #3aa0ff;
+  border-color: #8fc8ff;
+  color: #ffffff;
+}
+
 .file-chip {
   display: inline-flex;
   align-items: center;
