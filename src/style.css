@@ -1185,6 +1185,7 @@ body::before {
   width: 100%;
   min-height: 3.4rem;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
@@ -1205,6 +1206,235 @@ body::before {
 
 .penalty-label {
   display: block;
+}
+
+.penalty-secs {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+  font-weight: 600;
+}
+
+.recorded-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.btn-penalty-timer {
+  appearance: none;
+  border: 1px solid var(--action-blue-border);
+  border-radius: var(--radius);
+  background: var(--action-blue);
+  color: var(--action-blue-text);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 0.35rem 0.55rem;
+  min-height: 2rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.btn-penalty-timer:disabled {
+  opacity: 0.75;
+  cursor: default;
+}
+
+.penalty-countdown {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.4rem;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--af-gold-bright);
+}
+
+.recorded-penalty.is-timer-done {
+  animation: penalty-timer-blink 0.45s ease-in-out 6;
+  border-color: var(--af-danger);
+  background: rgba(198, 40, 40, 0.28);
+}
+
+@keyframes penalty-timer-blink {
+  0%,
+  100% {
+    background: rgba(198, 40, 40, 0.18);
+    box-shadow: none;
+  }
+  50% {
+    background: rgba(229, 57, 53, 0.55);
+    box-shadow: 0 0 0 2px rgba(229, 57, 53, 0.65);
+  }
+}
+
+.schedule-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin: 0.85rem 0 0.35rem;
+}
+
+.schedule-roster-summary {
+  margin: 0 0 1rem;
+  color: var(--af-muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.student-comment-picker {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.55rem 0 0.65rem;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--af-muted);
+}
+
+.student-select {
+  appearance: none;
+  width: 100%;
+  min-height: var(--touch);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--inset-bg);
+  color: var(--af-ink);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  letter-spacing: normal;
+  text-transform: none;
+  padding: 0.55rem 0.75rem;
+}
+
+.comment-student-tag {
+  font-style: normal;
+  color: var(--af-gold-bright);
+  font-weight: 700;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.25rem 0.85rem 2rem;
+  overflow: auto;
+  background: var(--menu-backdrop);
+  backdrop-filter: blur(2px);
+}
+
+.modal-card {
+  width: min(28rem, 100%);
+  margin-top: 8vh;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.15rem 1.1rem 1.2rem;
+}
+
+.modal-card h2 {
+  margin: 0 0 0.45rem;
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--af-ink);
+}
+
+.modal-lead {
+  margin: 0 0 0.95rem;
+  color: var(--af-muted);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.modal-field {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--af-muted);
+}
+
+.modal-select,
+.modal-input {
+  appearance: none;
+  width: 100%;
+  min-height: var(--touch);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--inset-bg);
+  color: var(--af-ink);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  letter-spacing: normal;
+  text-transform: none;
+  padding: 0.55rem 0.75rem;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.modal-error {
+  margin: 0.75rem 0 0;
+  color: var(--af-danger);
+  font-size: 0.9rem;
+}
+
+.student-name-list {
+  display: grid;
+  gap: 0.15rem;
+  max-height: min(50vh, 22rem);
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.btn-add-student {
+  appearance: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: 0.35rem auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--line);
+  border-radius: 50%;
+  background: var(--btn-bg);
+  color: var(--af-ink);
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.btn-add-student:hover,
+.btn-add-student:active {
+  background: var(--btn-bg-hover);
+  border-style: solid;
 }
 
 .penalty-option:hover,

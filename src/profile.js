@@ -443,26 +443,43 @@ export async function clearTaskRubric(classId, flightId, taskCode) {
   })
 }
 
-export async function addTaskComment(classId, flightId, taskCode, commentText, kind = 'student') {
+export async function addTaskComment(
+  classId,
+  flightId,
+  taskCode,
+  commentText,
+  kind = 'student',
+  meta = {},
+) {
   const text = String(commentText || '').trim()
   if (!text) throw new Error('Comment cannot be empty.')
   const field = kind === 'operational' ? 'operationalComments' : 'studentComments'
+  const studentId = meta?.studentId ? String(meta.studentId) : null
+  const studentName = meta?.studentName ? String(meta.studentName).trim() : ''
   return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
     rec[field].push({
       id: crypto.randomUUID(),
       text,
       recordedAt: new Date().toISOString(),
+      ...(kind === 'student' && studentId
+        ? { studentId, studentName: studentName || null }
+        : {}),
     })
     return rec
   })
 }
 
-export async function addTaskPenalty(classId, flightId, taskCode, penaltyText) {
+export async function addTaskPenalty(classId, flightId, taskCode, penaltyText, seconds = null) {
+  const secs =
+    typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0
+      ? Math.floor(seconds)
+      : null
   return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
     rec.penalties.push({
       id: crypto.randomUUID(),
       text: String(penaltyText || '').trim(),
       recordedAt: new Date().toISOString(),
+      seconds: secs,
     })
     return rec
   })
@@ -514,4 +531,54 @@ export function formatDuration(ms) {
     return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }
   return `${m}:${String(s).padStart(2, '0')}`
+}
+
+const STUDENTS_KEY = 'projx-flight-students-v1'
+
+function studentsMapKey(classId, flightId) {
+  return `${String(classId || '').trim().toUpperCase()}::${String(flightId || '').trim().toUpperCase()}`
+}
+
+function readStudentsStore() {
+  try {
+    return JSON.parse(localStorage.getItem(STUDENTS_KEY) || '{}') || {}
+  } catch {
+    return {}
+  }
+}
+
+function writeStudentsStore(store) {
+  localStorage.setItem(STUDENTS_KEY, JSON.stringify(store))
+}
+
+export function getFlightStudents(classId, flightId) {
+  const key = studentsMapKey(classId, flightId)
+  if (!key.startsWith('::') && !key.endsWith('::')) {
+    const list = readStudentsStore()[key]
+    return Array.isArray(list)
+      ? list
+          .map((s) => ({
+            id: String(s?.id || ''),
+            name: String(s?.name || '').trim(),
+          }))
+          .filter((s) => s.id && s.name)
+      : []
+  }
+  return []
+}
+
+export function setFlightStudents(classId, flightId, students) {
+  const key = studentsMapKey(classId, flightId)
+  if (key.startsWith('::') || key.endsWith('::')) {
+    throw new Error('Class and flight are required to save student names.')
+  }
+  const store = readStudentsStore()
+  store[key] = (Array.isArray(students) ? students : [])
+    .map((s) => ({
+      id: String(s?.id || crypto.randomUUID()),
+      name: String(s?.name || '').trim(),
+    }))
+    .filter((s) => s.name)
+  writeStudentsStore(store)
+  return store[key]
 }

@@ -3,10 +3,18 @@
  * label = 3–4 words for fast tap during live execution
  * detail = full rule text (what gets recorded)
  * tone = color family (red-* for touch-red fouls)
+ * seconds = countdown length parsed from detail (30, 60, …)
  */
 
+function extractPenaltySeconds(detail) {
+  const match = String(detail || '').match(/\((\d+)\b/)
+  if (!match) return null
+  const n = Number(match[1])
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
 function p(label, detail, tone) {
-  return { label, detail, tone }
+  return { label, detail, tone, seconds: extractPenaltySeconds(detail) }
 }
 
 export const TASK_PENALTIES = {

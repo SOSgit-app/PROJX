@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import { formatDuration, listFlightRecords, normalizeResult } from './profile.js'
+import { formatDuration, getFlightStudents, listFlightRecords, normalizeResult } from './profile.js'
 import {
   RUBRIC_CRITERIA,
   normalizeRubric,
@@ -88,7 +88,16 @@ export async function downloadFlightReport({
     ['Phase', 'Day', 'Order', 'Task', 'Result', 'Penalty', 'Recorded At'],
   ]
   const studentRows = [
-    ['Phase', 'Day', 'Order', 'Task', 'Result', 'Student Related Comment', 'Recorded At'],
+    [
+      'Phase',
+      'Day',
+      'Order',
+      'Task',
+      'Result',
+      'Student',
+      'Student Related Comment',
+      'Recorded At',
+    ],
   ]
   const operationalRows = [
     [
@@ -199,6 +208,7 @@ export async function downloadFlightReport({
         t.order ?? '',
         t.task,
         resultLabel,
+        c.studentName || '',
         c.text || '',
         formatStamp(c.recordedAt),
       ])
@@ -224,7 +234,7 @@ export async function downloadFlightReport({
     penaltyRows.push(['—', '—', '', '', '', 'No penalties recorded', ''])
   }
   if (studentRows.length === 1) {
-    studentRows.push(['—', '—', '', '', '', 'No student comments recorded', ''])
+    studentRows.push(['—', '—', '', '', '', '', 'No student comments recorded', ''])
   }
   if (operationalRows.length === 1) {
     operationalRows.push([
@@ -238,6 +248,14 @@ export async function downloadFlightReport({
     ])
   }
 
+  const roster = getFlightStudents(cls, flt)
+  const rosterRows = [['#', 'Student Name']]
+  if (roster.length) {
+    roster.forEach((s, i) => rosterRows.push([i + 1, s.name]))
+  } else {
+    rosterRows.push(['', 'No student names entered'])
+  }
+
   const exportedAt = new Date()
   const summaryRows = [
     ['PROJX Flight Report'],
@@ -249,6 +267,13 @@ export async function downloadFlightReport({
     ['Unit', squadronUnit || ''],
     ['Phase', `${phaseLabel} · ${dayLabel}`],
     ['Exported', exportedAt.toLocaleString()],
+    [],
+    ['Flight students'],
+    [
+      'Names',
+      roster.length ? roster.map((s) => s.name).join(', ') : 'None entered',
+    ],
+    ['Student count', roster.length],
     [],
     ['Totals'],
     [
@@ -274,7 +299,8 @@ export async function downloadFlightReport({
     ],
     ['Rubric', 'One row per criterion mark (Communication, Decision-Making, Leadership, Debrief)'],
     ['Penalties', 'One row per recorded penalty'],
-    ['Student Comments', 'Student related comments'],
+    ['Students', 'Flight roster names'],
+    ['Student Comments', 'Student related comments (optional student tagged)'],
     ['Operational Comments', 'Operational/equipment comments'],
   ]
 
@@ -295,8 +321,12 @@ export async function downloadFlightReport({
   penaltiesSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 70, 22])
   XLSX.utils.book_append_sheet(wb, penaltiesSheet, 'Penalties')
 
+  const rosterSheet = XLSX.utils.aoa_to_sheet(rosterRows)
+  rosterSheet['!cols'] = colWidths([6, 36])
+  XLSX.utils.book_append_sheet(wb, rosterSheet, 'Students')
+
   const studentSheet = XLSX.utils.aoa_to_sheet(studentRows)
-  studentSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 70, 22])
+  studentSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 18, 70, 22])
   XLSX.utils.book_append_sheet(wb, studentSheet, 'Student Comments')
 
   const operationalSheet = XLSX.utils.aoa_to_sheet(operationalRows)

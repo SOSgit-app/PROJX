@@ -5,7 +5,7 @@ import {
   flightsForSquadron,
   squadronForFlightId,
 } from './squadrons.js'
-import { findNotetaker, normalizeTaskCode, notetakersForVersion } from './notetakers.js'
+import { findNotetaker, normalizeTaskCode, notetakersForVersion, NOTETAKERS } from './notetakers.js'
 import { penaltiesForTask } from './penalties.js'
 import { downloadFlightReport } from './report.js'
 import {
@@ -18,13 +18,14 @@ import {
 import {
   addTaskComment,
   addTaskPenalty,
+  buildFlightBackup,
   clearTaskComments,
   clearTaskPenalties,
   clearTaskRubric,
   downloadFlightBackup,
-  buildFlightBackup,
   formatDuration,
   getClassId,
+  getFlightStudents,
   getTaskElapsedMs,
   getTaskRecord,
   normalizeResult,
@@ -34,6 +35,7 @@ import {
   restartTaskTimer,
   restoreFlightBackupFromFile,
   setClassId,
+  setFlightStudents,
   setRubricMark,
   setTaskGrade,
   startTaskTimer,
@@ -203,6 +205,7 @@ const state = {
   recordCache: {},
   statusMessage: '',
   error: '',
+  modal: null,
 }
 
 const app = document.querySelector('#app')
@@ -254,6 +257,66 @@ function resultLabel(result) {
   if (normalized === 'complete') return 'Complete'
   if (normalized === 'incomplete') return 'Incomplete'
   return 'Not graded'
+}
+
+function allTaskCatalog() {
+  return [...NOTETAKERS.A, ...NOTETAKERS.B].map((n) => ({
+    code: n.code,
+    title: n.title,
+    label: `${n.code} · ${n.title}`,
+  }))
+}
+
+function currentFlightStudents() {
+  return getFlightStudents(state.classId || getClassId(), state.flightId)
+}
+
+/** Live penalty countdowns keyed by recorded penalty id. */
+const penaltyTimers = new Map()
+
+function stopPenaltyCountdown(penaltyId) {
+  const entry = penaltyTimers.get(penaltyId)
+  if (!entry) return
+  clearInterval(entry.tickId)
+  penaltyTimers.delete(penaltyId)
+}
+
+function penaltyCountdownLeft(penaltyId) {
+  const entry = penaltyTimers.get(penaltyId)
+  if (!entry) return null
+  return Math.max(0, Math.ceil((entry.endsAt - Date.now()) / 1000))
+}
+
+function startPenaltyCountdown(penaltyId, seconds) {
+  const secs = Number(seconds)
+  if (!penaltyId || !Number.isFinite(secs) || secs <= 0) return
+  stopPenaltyCountdown(penaltyId)
+  const endsAt = Date.now() + secs * 1000
+  const selectorId =
+    typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+      ? CSS.escape(penaltyId)
+      : String(penaltyId).replace(/"/g, '\\"')
+  const tick = () => {
+    const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))
+    const label = app.querySelector(`[data-penalty-countdown="${selectorId}"]`)
+    if (label) label.textContent = left > 0 ? `${left}s` : '0s'
+    const btn = app.querySelector(`[data-start-penalty-timer="${selectorId}"]`)
+    if (btn) {
+      btn.disabled = left > 0
+      btn.textContent = left > 0 ? 'Timing…' : 'Start timer'
+    }
+    if (left <= 0) {
+      stopPenaltyCountdown(penaltyId)
+      const row = app.querySelector(`[data-recorded-penalty="${selectorId}"]`)
+      if (row) {
+        row.classList.add('is-timer-done')
+        window.setTimeout(() => row.classList.remove('is-timer-done'), 2800)
+      }
+    }
+  }
+  const tickId = window.setInterval(tick, 200)
+  penaltyTimers.set(penaltyId, { endsAt, tickId })
+  tick()
 }
 
 function isResourceStep(step = state.step) {
@@ -853,6 +916,7 @@ function phaseProgress(tasks) {
 function renderSchedule() {
   const sq = selectedSquadron() || squadronForFlightId(state.flightId)
   const flight = selectedFlight()
+  const students = currentFlightStudents()
   const actions = `
     <button type="button" class="btn" data-action="reset">New upload</button>
   `
@@ -868,6 +932,16 @@ function renderSchedule() {
           <p class="sub">Tap a task to grade, log penalties, and add comments. Progress auto-saves in this browser. On each task page, a backup file downloads every 2 minutes when data changes. Use Finalize for an immediate backup; download each phase report from the Phase I / Phase II sections below.</p>
         </div>
       </div>
+
+      <div class="schedule-toolbar">
+        <button type="button" class="btn btn-primary" data-action="open-task-change">Task change</button>
+        <button type="button" class="btn btn-primary" data-action="open-student-names">Enter Student Names</button>
+      </div>
+      ${
+        students.length
+          ? `<p class="schedule-roster-summary">${students.length} student${students.length === 1 ? '' : 's'}: ${escapeHtml(students.map((s) => s.name).join(', '))}</p>`
+          : `<p class="schedule-roster-summary">No student names entered yet.</p>`
+      }
 
       <section class="phase-block">
         <header>
@@ -1010,6 +1084,11 @@ function renderTask() {
                       (p, i) => `
               <button type="button" class="penalty-option tone-${escapeHtml(p.tone || 'other')}" data-record-penalty="${i}" role="listitem" title="${escapeHtml(p.detail || p.label)}">
                 <span class="penalty-label">${escapeHtml(p.label)}</span>
+                ${
+                  typeof p.seconds === 'number' && p.seconds > 0
+                    ? `<span class="penalty-secs">${p.seconds}s</span>`
+                    : ''
+                }
               </button>`,
                     )
                     .join('')
@@ -1020,19 +1099,33 @@ function renderTask() {
             recordedPenalties.length
               ? `<ul class="recorded-list">
                   ${recordedPenalties
-                    .map(
-                      (p) => `<li class="recorded-item">
+                    .map((p) => {
+                      const secs =
+                        typeof p.seconds === 'number' && p.seconds > 0 ? p.seconds : null
+                      const left = p.id ? penaltyCountdownLeft(p.id) : null
+                      const timing = left != null
+                      return `<li class="recorded-item recorded-penalty" data-recorded-penalty="${escapeHtml(p.id || '')}">
                         <div class="recorded-item-main">
                           <strong>Penalty</strong> · ${escapeHtml(p.text)}
                           <span>${escapeHtml(formatWhen(p.recordedAt))}</span>
                         </div>
-                        <button type="button" class="btn-icon-delete" data-delete-penalty="${escapeHtml(p.id || '')}" aria-label="Delete penalty" title="Delete penalty">
-                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                          </svg>
-                        </button>
-                      </li>`,
-                    )
+                        <div class="recorded-item-actions">
+                          ${
+                            secs
+                              ? `<button type="button" class="btn btn-penalty-timer" data-start-penalty-timer="${escapeHtml(p.id || '')}" data-penalty-seconds="${secs}" ${timing ? 'disabled' : ''}>
+                                  ${timing ? 'Timing…' : 'Start timer'}
+                                </button>
+                                <span class="penalty-countdown" data-penalty-countdown="${escapeHtml(p.id || '')}" aria-live="polite">${timing ? `${left}s` : `${secs}s`}</span>`
+                              : ''
+                          }
+                          <button type="button" class="btn-icon-delete" data-delete-penalty="${escapeHtml(p.id || '')}" aria-label="Delete penalty" title="Delete penalty">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </li>`
+                    })
                     .join('')}
                 </ul>
                 <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-penalties">Clear penalties</button>`
@@ -1116,9 +1209,26 @@ function renderRubric(rubric) {
 
 function renderCommentSection(kind, title, placeholder, comments) {
   const headingId = `task-comments-${kind}-heading`
+  const students = kind === 'student' ? currentFlightStudents() : []
+  const studentPicker =
+    kind === 'student'
+      ? `<label class="student-comment-picker">
+          <span>Student (optional)</span>
+          <select id="task-comment-student" class="student-select">
+            <option value="">Whole flight / none</option>
+            ${students
+              .map(
+                (s) =>
+                  `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`,
+              )
+              .join('')}
+          </select>
+        </label>`
+      : ''
   return `
     <section class="task-section" aria-labelledby="${headingId}">
       <p class="grade-label" id="${headingId}">${escapeHtml(title)}</p>
+      ${studentPicker}
       <textarea id="task-comment-${kind}" class="comment-input" rows="3" placeholder="${escapeHtml(placeholder)}"></textarea>
       <button type="button" class="btn btn-primary btn-comment-submit" data-action="submit-comment" data-comment-kind="${kind}">Submit comment</button>
       ${
@@ -1128,7 +1238,11 @@ function renderCommentSection(kind, title, placeholder, comments) {
                 .map(
                   (c) => `<li class="recorded-item">
                     <div class="recorded-item-main">
-                      <strong>Comment</strong> · ${escapeHtml(c.text)}
+                      <strong>Comment</strong>${
+                        c.studentName
+                          ? ` · <em class="comment-student-tag">${escapeHtml(c.studentName)}</em>`
+                          : ''
+                      } · ${escapeHtml(c.text)}
                       <span>${escapeHtml(formatWhen(c.recordedAt))}</span>
                     </div>
                     <button type="button" class="btn-icon-delete" data-delete-comment="${escapeHtml(c.id || '')}" data-comment-kind="${kind}" aria-label="Delete comment" title="Delete comment">
@@ -1204,6 +1318,276 @@ function escapeHtml(value) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
+}
+
+function scheduleTaskOptions() {
+  const flight = selectedFlight()
+  if (!flight) return []
+  const rows = []
+  for (const phase of ['phase1', 'phase2']) {
+    const list = flight[phase] || []
+    list.forEach((t, index) => {
+      const code = normalizeTaskCode(t.task) || t.task
+      const note = findNotetaker(t.task)
+      const phaseLabel = phase === 'phase1' ? 'Phase I' : 'Phase II'
+      rows.push({
+        key: `${phase}:${index}`,
+        phase,
+        index,
+        code,
+        label: `${phaseLabel} · Order ${t.order ?? '—'} · ${code}${note?.title ? ` · ${note.title}` : ''}`,
+      })
+    })
+  }
+  return rows
+}
+
+function replaceScheduledTask(phase, index, newCode) {
+  const flight = selectedFlight()
+  if (!flight) throw new Error('No flight selected.')
+  const list = flight[phase]
+  if (!list?.[index]) throw new Error('Could not find that scheduled task.')
+  const code = normalizeTaskCode(newCode) || String(newCode || '').trim().toUpperCase()
+  if (!code) throw new Error('Choose a replacement task.')
+  const note = findNotetaker(code)
+  list[index] = {
+    ...list[index],
+    task: code,
+  }
+  saveLastSession()
+  return { code, title: note?.title || '' }
+}
+
+function renderModal() {
+  const modal = state.modal
+  if (!modal) return ''
+
+  if (modal.type === 'task-change') {
+    const scheduled = scheduleTaskOptions()
+    const catalog = allTaskCatalog()
+    const step = modal.step || 'pick-current'
+    const from = scheduled.find((t) => t.key === modal.fromKey)
+    return `
+      <div class="modal-backdrop" data-action="close-modal" role="presentation">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-task-change-title" data-stop-modal>
+          <h2 id="modal-task-change-title">Task change</h2>
+          ${
+            step === 'pick-current'
+              ? `<p class="modal-lead">Select the scheduled task to replace.</p>
+                 <label class="modal-field">
+                   <span>Current task</span>
+                   <select id="modal-task-from" class="modal-select">
+                     <option value="">Select a task…</option>
+                     ${scheduled
+                       .map(
+                         (t) =>
+                           `<option value="${escapeHtml(t.key)}" ${modal.fromKey === t.key ? 'selected' : ''}>${escapeHtml(t.label)}</option>`,
+                       )
+                       .join('')}
+                   </select>
+                 </label>
+                 <div class="modal-actions">
+                   <button type="button" class="btn" data-action="close-modal">Cancel</button>
+                   <button type="button" class="btn btn-primary" data-action="task-change-next">Next</button>
+                 </div>`
+              : `<p class="modal-lead">Replace <strong>${escapeHtml(from?.label || 'selected task')}</strong> with:</p>
+                 <label class="modal-field">
+                   <span>New task</span>
+                   <select id="modal-task-to" class="modal-select">
+                     <option value="">Select replacement…</option>
+                     ${catalog
+                       .map(
+                         (t) =>
+                           `<option value="${escapeHtml(t.code)}" ${modal.toCode === t.code ? 'selected' : ''}>${escapeHtml(t.label)}</option>`,
+                       )
+                       .join('')}
+                   </select>
+                 </label>
+                 <div class="modal-actions">
+                   <button type="button" class="btn" data-action="task-change-back">Back</button>
+                   <button type="button" class="btn btn-primary" data-action="task-change-finish">Finish</button>
+                 </div>`
+          }
+          ${modal.error ? `<p class="modal-error">${escapeHtml(modal.error)}</p>` : ''}
+        </div>
+      </div>`
+  }
+
+  if (modal.type === 'students') {
+    const names = Array.isArray(modal.names) && modal.names.length ? modal.names : ['']
+    return `
+      <div class="modal-backdrop" data-action="close-modal" role="presentation">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-students-title" data-stop-modal>
+          <h2 id="modal-students-title">Enter Student Names</h2>
+          <p class="modal-lead">Add flight roster names. They appear on Phase I / Phase II reports.</p>
+          <div class="student-name-list" id="student-name-list">
+            ${names
+              .map(
+                (name, i) => `
+              <label class="modal-field student-name-row">
+                <span>Student ${i + 1}</span>
+                <input type="text" class="modal-input student-name-input" data-student-index="${i}" value="${escapeHtml(name)}" placeholder="Student name" autocomplete="name" />
+              </label>`,
+              )
+              .join('')}
+          </div>
+          <button type="button" class="btn-add-student" data-action="add-student-row" aria-label="Add another student" title="Add student">
+            <span aria-hidden="true">+</span>
+          </button>
+          <div class="modal-actions">
+            <button type="button" class="btn" data-action="close-modal">Cancel</button>
+            <button type="button" class="btn btn-primary" data-action="finish-student-names">Finish</button>
+          </div>
+          ${modal.error ? `<p class="modal-error">${escapeHtml(modal.error)}</p>` : ''}
+        </div>
+      </div>`
+  }
+
+  return ''
+}
+
+function closeModal() {
+  setState({ modal: null })
+}
+
+function openTaskChangeModal() {
+  setState({
+    modal: { type: 'task-change', step: 'pick-current', fromKey: '', toCode: '', error: '' },
+  })
+}
+
+function openStudentNamesModal() {
+  const existing = currentFlightStudents()
+  setState({
+    modal: {
+      type: 'students',
+      names: existing.length ? existing.map((s) => s.name) : [''],
+      error: '',
+    },
+  })
+}
+
+function readStudentNameInputs() {
+  return [...app.querySelectorAll('.student-name-input')].map((el) => el.value || '')
+}
+
+function bindModal() {
+  if (!state.modal) return
+
+  app.querySelectorAll('[data-action="close-modal"]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      if (el.classList.contains('modal-backdrop') && e.target !== el) return
+      closeModal()
+    })
+  })
+  app.querySelectorAll('[data-stop-modal]').forEach((el) => {
+    el.addEventListener('click', (e) => e.stopPropagation())
+  })
+
+  app.querySelectorAll('[data-action="task-change-next"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const fromKey = app.querySelector('#modal-task-from')?.value || ''
+      if (!fromKey) {
+        setState({ modal: { ...state.modal, error: 'Select a task to replace.' } })
+        return
+      }
+      setState({
+        modal: {
+          ...state.modal,
+          step: 'pick-replacement',
+          fromKey,
+          error: '',
+        },
+      })
+    })
+  })
+
+  app.querySelectorAll('[data-action="task-change-back"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      setState({
+        modal: {
+          ...state.modal,
+          step: 'pick-current',
+          toCode: '',
+          error: '',
+        },
+      })
+    })
+  })
+
+  app.querySelectorAll('[data-action="task-change-finish"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const toCode = app.querySelector('#modal-task-to')?.value || ''
+      const fromKey = state.modal?.fromKey || ''
+      if (!toCode) {
+        setState({ modal: { ...state.modal, error: 'Select a replacement task.' } })
+        return
+      }
+      const [phase, indexRaw] = String(fromKey).split(':')
+      const index = Number(indexRaw)
+      try {
+        const replaced = replaceScheduledTask(phase, index, toCode)
+        setState({
+          modal: null,
+          statusMessage: `Replaced scheduled task with ${replaced.code}${replaced.title ? ` · ${replaced.title}` : ''}`,
+          recordCache: { ...state.recordCache },
+        })
+      } catch (err) {
+        setState({
+          modal: { ...state.modal, error: err.message || 'Could not change task.' },
+        })
+      }
+    })
+  })
+
+  app.querySelectorAll('[data-action="add-student-row"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const names = readStudentNameInputs()
+      names.push('')
+      setState({ modal: { ...state.modal, names, error: '' } })
+      requestAnimationFrame(() => {
+        const inputs = app.querySelectorAll('.student-name-input')
+        const last = inputs[inputs.length - 1]
+        if (last) last.focus()
+      })
+    })
+  })
+
+  app.querySelectorAll('[data-action="finish-student-names"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const classId = requireClassId()
+      if (!classId) {
+        setState({
+          modal: { ...state.modal, error: 'Set a class profile before saving student names.' },
+        })
+        return
+      }
+      const names = readStudentNameInputs()
+        .map((n) => String(n || '').trim())
+        .filter(Boolean)
+      const existing = currentFlightStudents()
+      const byName = new Map(existing.map((s) => [s.name.toLowerCase(), s]))
+      const students = names.map((name) => {
+        const prev = byName.get(name.toLowerCase())
+        return prev ? { id: prev.id, name } : { id: crypto.randomUUID(), name }
+      })
+      try {
+        setFlightStudents(classId, state.flightId, students)
+        state.classId = classId
+        setState({
+          modal: null,
+          statusMessage:
+            students.length === 0
+              ? 'Cleared student names for this flight.'
+              : `Saved ${students.length} student name${students.length === 1 ? '' : 's'} for this flight.`,
+        })
+      } catch (err) {
+        setState({
+          modal: { ...state.modal, error: err.message || 'Could not save student names.' },
+        })
+      }
+    })
+  })
 }
 
 function bindChrome() {
@@ -1415,12 +1799,18 @@ async function savePenalty(index) {
   const penalty = options[Number(index)]
   if (!penalty) return
   const text = typeof penalty === 'string' ? penalty : penalty.detail || penalty.label
-  const record = await addTaskPenalty(classId, state.flightId, task.task, text)
+  const seconds =
+    typeof penalty === 'object' && typeof penalty.seconds === 'number' ? penalty.seconds : null
+  const record = await addTaskPenalty(classId, state.flightId, task.task, text, seconds)
   state.taskRecord = record
   state.recordCache[cacheKey(task.task)] = record
   state.classId = classId
   state.statusMessage = `Penalty recorded for ${task.task}`
   render()
+  const newest = record?.penalties?.[record.penalties.length - 1]
+  if (newest?.id && newest.seconds) {
+    startPenaltyCountdown(newest.id, newest.seconds)
+  }
 }
 
 async function saveComment(kind = 'student') {
@@ -1433,15 +1823,28 @@ async function saveComment(kind = 'student') {
   }
   const textarea = app.querySelector(`#task-comment-${kind}`)
   const text = textarea?.value || ''
+  let meta = {}
+  if (kind === 'student') {
+    const select = app.querySelector('#task-comment-student')
+    const studentId = select?.value || ''
+    if (studentId) {
+      const student = currentFlightStudents().find((s) => s.id === studentId)
+      if (student) {
+        meta = { studentId: student.id, studentName: student.name }
+      }
+    }
+  }
   try {
-    const record = await addTaskComment(classId, state.flightId, task.task, text, kind)
+    const record = await addTaskComment(classId, state.flightId, task.task, text, kind, meta)
     state.taskRecord = record
     state.recordCache[cacheKey(task.task)] = record
     state.classId = classId
     state.statusMessage =
       kind === 'operational'
         ? `Operational/equipment comment saved for ${task.task}`
-        : `Student comment saved for ${task.task}`
+        : meta.studentName
+          ? `Student comment saved for ${task.task} · ${meta.studentName}`
+          : `Student comment saved for ${task.task}`
     render()
   } catch (err) {
     setState({ statusMessage: err.message || 'Could not save comment.' })
@@ -1456,6 +1859,10 @@ async function clearPenalties() {
     setState({ statusMessage: 'Set a class profile first.' })
     return
   }
+  const previous = state.taskRecord?.penalties || []
+  previous.forEach((p) => {
+    if (p?.id) stopPenaltyCountdown(p.id)
+  })
   const record = await clearTaskPenalties(classId, state.flightId, task.task)
   state.taskRecord = record
   state.recordCache[cacheKey(task.task)] = record
@@ -1491,6 +1898,7 @@ async function deletePenalty(penaltyId) {
     setState({ statusMessage: 'Set a class profile first.' })
     return
   }
+  stopPenaltyCountdown(penaltyId)
   const record = await removeTaskPenalty(classId, state.flightId, task.task, penaltyId)
   state.taskRecord = record
   state.recordCache[cacheKey(task.task)] = record
@@ -1571,6 +1979,14 @@ function bindTaskActions() {
   })
   app.querySelectorAll('[data-record-penalty]').forEach((el) => {
     el.addEventListener('click', () => savePenalty(el.dataset.recordPenalty))
+  })
+  app.querySelectorAll('[data-start-penalty-timer]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.startPenaltyTimer
+      const seconds = Number(el.dataset.penaltySeconds)
+      if (!id || !Number.isFinite(seconds) || seconds <= 0) return
+      startPenaltyCountdown(id, seconds)
+    })
   })
   app.querySelectorAll('[data-rubric-criterion]').forEach((el) => {
     el.addEventListener('click', () =>
@@ -1829,11 +2245,12 @@ function render() {
 
   if (state.step !== 'task') stopAutoBackupWatch()
 
-  app.innerHTML = `${renderSideMenu()}${html}`
+  app.innerHTML = `${renderSideMenu()}${html}${renderModal()}`
 
   if (state.step === 'upload') bindUpload(app)
   if (state.step === 'class-profile') bindClassProfile()
   bindChrome()
+  bindModal()
   if (state.step === 'task') bindTaskActions()
   else stopTimerTick()
 
@@ -1855,6 +2272,12 @@ function render() {
   })
   app.querySelectorAll('[data-action="download-flight-report"]').forEach((el) => {
     el.addEventListener('click', () => downloadCurrentFlightReport(el.dataset.phase || '1'))
+  })
+  app.querySelectorAll('[data-action="open-task-change"]').forEach((el) => {
+    el.addEventListener('click', openTaskChangeModal)
+  })
+  app.querySelectorAll('[data-action="open-student-names"]').forEach((el) => {
+    el.addEventListener('click', openStudentNamesModal)
   })
   app.querySelectorAll('[data-squadron]').forEach((el) => {
     el.addEventListener('click', () => {
@@ -1900,6 +2323,10 @@ function render() {
 }
 
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.modal) {
+    closeModal()
+    return
+  }
   if (e.key === 'Escape' && state.menuOpen) {
     setState({ menuOpen: false })
   }
