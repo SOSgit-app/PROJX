@@ -937,11 +937,18 @@ function renderSchedule() {
         <button type="button" class="btn btn-primary" data-action="open-task-change">Task change</button>
         <button type="button" class="btn btn-primary" data-action="open-student-names">Enter Student Names</button>
       </div>
-      ${
-        students.length
-          ? `<p class="schedule-roster-summary">${students.length} student${students.length === 1 ? '' : 's'}: ${escapeHtml(students.map((s) => s.name).join(', '))}</p>`
-          : `<p class="schedule-roster-summary">No student names entered yet.</p>`
-      }
+      <details class="students-dropdown">
+        <summary class="students-dropdown-toggle">
+          Students${students.length ? ` (${students.length})` : ''}
+        </summary>
+        ${
+          students.length
+            ? `<ul class="students-dropdown-list">
+                ${students.map((s) => `<li>${escapeHtml(s.name)}</li>`).join('')}
+              </ul>`
+            : `<p class="students-dropdown-empty">No student names entered yet.</p>`
+        }
+      </details>
 
       <section class="phase-block">
         <header>
@@ -1424,16 +1431,26 @@ function renderModal() {
             ${names
               .map(
                 (name, i) => `
-              <label class="modal-field student-name-row">
-                <span>Student ${i + 1}</span>
-                <input type="text" class="modal-input student-name-input" data-student-index="${i}" value="${escapeHtml(name)}" placeholder="Student name" autocomplete="name" />
-              </label>`,
+              <div class="student-name-row">
+                <label class="modal-field student-name-field">
+                  <span>Student ${i + 1}</span>
+                  <input type="text" class="modal-input student-name-input" data-student-index="${i}" value="${escapeHtml(name)}" placeholder="Student name" autocomplete="name" />
+                </label>
+                <button type="button" class="btn-icon-delete" data-action="remove-student-row" data-student-index="${i}" aria-label="Delete student ${i + 1}" title="Delete student">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>`,
               )
               .join('')}
           </div>
-          <button type="button" class="btn-add-student" data-action="add-student-row" aria-label="Add another student" title="Add student">
-            <span aria-hidden="true">+</span>
-          </button>
+          <div class="student-name-tools">
+            <button type="button" class="btn-add-student" data-action="add-student-row" aria-label="Add another student" title="Add student">
+              <span aria-hidden="true">+</span>
+            </button>
+            <button type="button" class="btn btn-clear" data-action="clear-student-names">Clear all</button>
+          </div>
           <div class="modal-actions">
             <button type="button" class="btn" data-action="close-modal">Cancel</button>
             <button type="button" class="btn btn-primary" data-action="finish-student-names">Finish</button>
@@ -1549,6 +1566,32 @@ function bindModal() {
         const inputs = app.querySelectorAll('.student-name-input')
         const last = inputs[inputs.length - 1]
         if (last) last.focus()
+      })
+    })
+  })
+
+  app.querySelectorAll('[data-action="remove-student-row"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const index = Number(el.dataset.studentIndex)
+      const names = readStudentNameInputs()
+      if (Number.isNaN(index) || index < 0 || index >= names.length) return
+      names.splice(index, 1)
+      setState({
+        modal: {
+          ...state.modal,
+          names: names.length ? names : [''],
+          error: '',
+        },
+      })
+    })
+  })
+
+  app.querySelectorAll('[data-action="clear-student-names"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      setState({ modal: { ...state.modal, names: [''], error: '' } })
+      requestAnimationFrame(() => {
+        const first = app.querySelector('.student-name-input')
+        if (first) first.focus()
       })
     })
   })
