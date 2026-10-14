@@ -493,22 +493,32 @@ export async function addTaskPenalty(classId, flightId, taskCode, penaltyText, s
 }
 
 /**
- * @param {{ severity: 'minor'|'major', impact: 'halted'|'paused', note?: string }} injury
+ * @param {{
+ *   severity: 'minor'|'major',
+ *   haynesCalled: 'yes'|'no',
+ *   note?: string,
+ *   studentId?: string|null,
+ *   studentName?: string|null,
+ * }} injury
  */
 export async function addTaskInjury(classId, flightId, taskCode, injury) {
   const severity = injury?.severity === 'major' ? 'major' : injury?.severity === 'minor' ? 'minor' : null
-  const impact = injury?.impact === 'halted' ? 'halted' : injury?.impact === 'paused' ? 'paused' : null
+  const haynesCalled =
+    injury?.haynesCalled === 'yes' ? 'yes' : injury?.haynesCalled === 'no' ? 'no' : null
   const note = String(injury?.note || '').trim()
+  const studentId = injury?.studentId ? String(injury.studentId) : null
+  const studentName = injury?.studentName ? String(injury.studentName).trim() : ''
   if (!severity) throw new Error('Select Minor or Major injury.')
-  if (!impact) throw new Error('Select whether the injury halted or paused the task.')
+  if (!haynesCalled) throw new Error('Select whether HAYNES was called.')
   if (!note) throw new Error('Describe the injury type (or enter Other).')
   return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
     if (!Array.isArray(rec.injuries)) rec.injuries = []
     rec.injuries.push({
       id: crypto.randomUUID(),
       severity,
-      impact,
+      haynesCalled,
       note,
+      ...(studentId ? { studentId, studentName: studentName || null } : {}),
       recordedAt: new Date().toISOString(),
       timerMs: getTaskElapsedMs(rec),
     })

@@ -1008,10 +1008,13 @@ function injurySeverityLabel(severity) {
   return 'Injury'
 }
 
-function injuryImpactLabel(impact) {
-  if (impact === 'halted') return 'Halted the task entirely'
-  if (impact === 'paused') return 'Paused the task for a short time'
-  return 'Impact not specified'
+function injuryHaynesLabel(haynesCalled) {
+  if (haynesCalled === 'yes') return 'HAYNES called: Yes'
+  if (haynesCalled === 'no') return 'HAYNES called: No'
+  // Legacy halt/pause values from earlier builds
+  if (haynesCalled === 'halted') return 'Halted the task entirely'
+  if (haynesCalled === 'paused') return 'Paused the task for a short time'
+  return 'HAYNES called: —'
 }
 
 function renderTask() {
@@ -1187,8 +1190,12 @@ function renderTask() {
                         .map(
                           (inj, i) => `<li class="recorded-item recorded-comment" data-recorded-injury="${escapeHtml(inj.id || '')}">
                             <div class="recorded-item-main">
-                              <strong>Injury ${i + 1}</strong> · ${escapeHtml(injurySeverityLabel(inj.severity))}
-                              <p class="recorded-comment-text">${escapeHtml(injuryImpactLabel(inj.impact))}</p>
+                              <strong>Injury ${i + 1}</strong> · ${escapeHtml(injurySeverityLabel(inj.severity))}${
+                                inj.studentName
+                                  ? ` · <em class="comment-student-tag">${escapeHtml(inj.studentName)}</em>`
+                                  : ''
+                              }
+                              <p class="recorded-comment-text">${escapeHtml(injuryHaynesLabel(inj.haynesCalled ?? inj.impact))}</p>
                               <p class="recorded-comment-text">${escapeHtml(inj.note || '')}</p>
                               <span class="recorded-when">${escapeHtml(formatTimerAt(inj))}</span>
                             </div>
@@ -1540,13 +1547,33 @@ function renderModal() {
 
   if (modal.type === 'injury') {
     const severity = modal.severity || ''
-    const impact = modal.impact || ''
+    const haynesCalled = modal.haynesCalled || ''
     const note = modal.note || ''
+    const studentId = modal.studentId || ''
+    const students = currentFlightStudents()
     return `
       <div class="modal-backdrop" data-action="close-modal" role="presentation">
         <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-injury-title" data-stop-modal>
           <h2 id="modal-injury-title">Record injury</h2>
           <p class="modal-lead">Log a minor or major injury for this task.</p>
+
+          <label class="modal-field">
+            <span>Student (optional)</span>
+            <select id="modal-injury-student" class="modal-select">
+              <option value="">None / not specified</option>
+              ${students
+                .map(
+                  (s) =>
+                    `<option value="${escapeHtml(s.id)}" ${studentId === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          ${
+            students.length
+              ? ''
+              : `<p class="modal-lead">No student names entered yet. Use Enter Student Names on the schedule if you want to tag a student.</p>`
+          }
 
           <fieldset class="modal-fieldset">
             <legend>Severity</legend>
@@ -1563,15 +1590,15 @@ function renderModal() {
           </fieldset>
 
           <fieldset class="modal-fieldset">
-            <legend>Did the injury halt the task entirely?</legend>
+            <legend>Was HAYNES called?</legend>
             <div class="choice-grid">
               <label class="choice-option">
-                <input type="radio" name="injury-impact" value="halted" ${impact === 'halted' ? 'checked' : ''} />
-                <span>Yes — halted entirely</span>
+                <input type="radio" name="injury-haynes" value="yes" ${haynesCalled === 'yes' ? 'checked' : ''} />
+                <span>Yes</span>
               </label>
               <label class="choice-option">
-                <input type="radio" name="injury-impact" value="paused" ${impact === 'paused' ? 'checked' : ''} />
-                <span>No — paused for a short time</span>
+                <input type="radio" name="injury-haynes" value="no" ${haynesCalled === 'no' ? 'checked' : ''} />
+                <span>No</span>
               </label>
             </div>
           </fieldset>
@@ -1619,7 +1646,8 @@ function openInjuryModal() {
     modal: {
       type: 'injury',
       severity: '',
-      impact: '',
+      haynesCalled: '',
+      studentId: '',
       note: '',
       error: '',
     },
@@ -1792,27 +1820,35 @@ async function finishInjuryFromModal() {
     return
   }
   const severity = app.querySelector('input[name="injury-severity"]:checked')?.value || ''
-  const impact = app.querySelector('input[name="injury-impact"]:checked')?.value || ''
+  const haynesCalled = app.querySelector('input[name="injury-haynes"]:checked')?.value || ''
   const note = app.querySelector('#modal-injury-note')?.value || ''
+  const studentId = app.querySelector('#modal-injury-student')?.value || ''
+  const student = studentId
+    ? currentFlightStudents().find((s) => s.id === studentId)
+    : null
   try {
     const record = await addTaskInjury(classId, state.flightId, task.task, {
       severity,
-      impact,
+      haynesCalled,
       note,
+      ...(student ? { studentId: student.id, studentName: student.name } : {}),
     })
     state.taskRecord = record
     state.recordCache[cacheKey(task.task)] = record
     state.classId = classId
     setState({
       modal: null,
-      statusMessage: `${injurySeverityLabel(severity)} recorded for ${task.task}`,
+      statusMessage: student
+        ? `${injurySeverityLabel(severity)} recorded for ${task.task} · ${student.name}`
+        : `${injurySeverityLabel(severity)} recorded for ${task.task}`,
     })
   } catch (err) {
     setState({
       modal: {
         ...state.modal,
         severity,
-        impact,
+        haynesCalled,
+        studentId,
         note,
         error: err.message || 'Could not save injury.',
       },

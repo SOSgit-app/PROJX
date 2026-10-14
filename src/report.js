@@ -97,8 +97,9 @@ export async function downloadFlightReport({
       'Task',
       'Result',
       '#',
+      'Student',
       'Severity',
-      'Impact',
+      'HAYNES Called',
       'Injury Type / Notes',
       'Timer At',
       'Clock Time',
@@ -256,6 +257,16 @@ export async function downloadFlightReport({
     })
 
     injuries.forEach((inj, i) => {
+      const haynes =
+        inj.haynesCalled === 'yes'
+          ? 'Yes'
+          : inj.haynesCalled === 'no'
+            ? 'No'
+            : inj.impact === 'halted'
+              ? 'Halted entirely (legacy)'
+              : inj.impact === 'paused'
+                ? 'Paused briefly (legacy)'
+                : ''
       injuryRows.push([
         t.phase,
         t.day,
@@ -263,12 +274,9 @@ export async function downloadFlightReport({
         t.task,
         resultLabel,
         i + 1,
+        inj.studentName || '',
         inj.severity === 'major' ? 'Major' : inj.severity === 'minor' ? 'Minor' : '',
-        inj.impact === 'halted'
-          ? 'Halted entirely'
-          : inj.impact === 'paused'
-            ? 'Paused briefly'
-            : '',
+        haynes,
         inj.note || '',
         formatTimerStamp(inj.timerMs),
         formatStamp(inj.recordedAt),
@@ -302,6 +310,7 @@ export async function downloadFlightReport({
     injuryRows.push([
       '—',
       '—',
+      '',
       '',
       '',
       '',
@@ -369,7 +378,7 @@ export async function downloadFlightReport({
     ['Students', 'Flight roster names'],
     ['Student Comments', 'Student related comments (optional student tagged)'],
     ['Operational Comments', 'Operational/equipment comments'],
-    ['Injuries', 'Minor/major injury logs with halt/pause impact and notes'],
+    ['Injuries', 'Minor/major injury logs with optional student, HAYNES called, and notes'],
   ]
 
   const wb = XLSX.utils.book_new()
@@ -402,7 +411,7 @@ export async function downloadFlightReport({
   XLSX.utils.book_append_sheet(wb, operationalSheet, 'Operational Comments')
 
   const injuriesSheet = XLSX.utils.aoa_to_sheet(injuryRows)
-  injuriesSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 6, 12, 18, 40, 12, 22])
+  injuriesSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 6, 18, 12, 14, 40, 12, 22])
   XLSX.utils.book_append_sheet(wb, injuriesSheet, 'Injuries')
 
   const stamp = exportedAt.toISOString().replace(/[:.]/g, '-').slice(0, 19)
