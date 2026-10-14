@@ -1551,11 +1551,35 @@ function renderModal() {
     const note = modal.note || ''
     const studentId = modal.studentId || ''
     const students = currentFlightStudents()
+    const scheduled = scheduleTaskOptions()
+    const currentTask = activeTaskRecord()
+    const selectedTaskCode =
+      modal.taskCode ||
+      normalizeTaskCode(currentTask?.task) ||
+      currentTask?.task ||
+      ''
     return `
       <div class="modal-backdrop" data-action="close-modal" role="presentation">
         <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-injury-title" data-stop-modal>
           <h2 id="modal-injury-title">Record injury</h2>
-          <p class="modal-lead">Log a minor or major injury for this task.</p>
+          <p class="modal-lead">Log a minor or major injury for a scheduled task.</p>
+
+          <label class="modal-field">
+            <span>Task where injury occurred</span>
+            <select id="modal-injury-task" class="modal-select">
+              <option value="">Select a task…</option>
+              ${scheduled
+                .map(
+                  (t) =>
+                    `<option value="${escapeHtml(t.code)}" ${
+                      String(selectedTaskCode).toUpperCase() === String(t.code).toUpperCase()
+                        ? 'selected'
+                        : ''
+                    }>${escapeHtml(t.label)}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
 
           <label class="modal-field">
             <span>Student (optional)</span>
@@ -1642,9 +1666,11 @@ function openStudentNamesModal() {
 }
 
 function openInjuryModal() {
+  const current = activeTaskRecord()
   setState({
     modal: {
       type: 'injury',
+      taskCode: normalizeTaskCode(current?.task) || current?.task || '',
       severity: '',
       haynesCalled: '',
       studentId: '',
@@ -1810,8 +1836,7 @@ function bindModal() {
 }
 
 async function finishInjuryFromModal() {
-  const task = activeTaskRecord()
-  if (!task) return
+  const currentTask = activeTaskRecord()
   const classId = requireClassId()
   if (!classId) {
     setState({
@@ -1819,6 +1844,7 @@ async function finishInjuryFromModal() {
     })
     return
   }
+  const taskCode = app.querySelector('#modal-injury-task')?.value || ''
   const severity = app.querySelector('input[name="injury-severity"]:checked')?.value || ''
   const haynesCalled = app.querySelector('input[name="injury-haynes"]:checked')?.value || ''
   const note = app.querySelector('#modal-injury-note')?.value || ''
@@ -1826,21 +1852,40 @@ async function finishInjuryFromModal() {
   const student = studentId
     ? currentFlightStudents().find((s) => s.id === studentId)
     : null
+  if (!taskCode) {
+    setState({
+      modal: {
+        ...state.modal,
+        severity,
+        haynesCalled,
+        studentId,
+        note,
+        taskCode: '',
+        error: 'Select the task where the injury occurred.',
+      },
+    })
+    return
+  }
   try {
-    const record = await addTaskInjury(classId, state.flightId, task.task, {
+    const record = await addTaskInjury(classId, state.flightId, taskCode, {
       severity,
       haynesCalled,
       note,
       ...(student ? { studentId: student.id, studentName: student.name } : {}),
     })
-    state.taskRecord = record
-    state.recordCache[cacheKey(task.task)] = record
+    state.recordCache[cacheKey(taskCode)] = record
     state.classId = classId
+    const currentCode = normalizeTaskCode(currentTask?.task) || currentTask?.task || ''
+    if (
+      currentTask &&
+      String(currentCode).toUpperCase() === String(taskCode).toUpperCase()
+    ) {
+      state.taskRecord = record
+    }
+    const who = student ? ` · ${student.name}` : ''
     setState({
       modal: null,
-      statusMessage: student
-        ? `${injurySeverityLabel(severity)} recorded for ${task.task} · ${student.name}`
-        : `${injurySeverityLabel(severity)} recorded for ${task.task}`,
+      statusMessage: `${injurySeverityLabel(severity)} recorded for ${taskCode}${who}`,
     })
   } catch (err) {
     setState({
@@ -1850,6 +1895,7 @@ async function finishInjuryFromModal() {
         haynesCalled,
         studentId,
         note,
+        taskCode,
         error: err.message || 'Could not save injury.',
       },
     })
