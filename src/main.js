@@ -1216,6 +1216,7 @@ function renderRubric(rubric) {
 
 function renderCommentSection(kind, title, placeholder, comments) {
   const headingId = `task-comments-${kind}-heading`
+  const list = Array.isArray(comments) ? comments : []
   const students = kind === 'student' ? currentFlightStudents() : []
   const studentPicker =
     kind === 'student'
@@ -1233,30 +1234,34 @@ function renderCommentSection(kind, title, placeholder, comments) {
         </label>`
       : ''
   return `
-    <section class="task-section" aria-labelledby="${headingId}">
+    <section class="task-section" aria-labelledby="${headingId}" data-comment-section="${kind}">
       <p class="grade-label" id="${headingId}">${escapeHtml(title)}</p>
       ${studentPicker}
       <textarea id="task-comment-${kind}" class="comment-input" rows="3" placeholder="${escapeHtml(placeholder)}"></textarea>
       <button type="button" class="btn btn-primary btn-comment-submit" data-action="submit-comment" data-comment-kind="${kind}">Submit comment</button>
       ${
-        comments.length
-          ? `<ul class="recorded-list">
-              ${comments
+        list.length
+          ? `<p class="recorded-heading">Submitted comments</p>
+            <ul class="recorded-list recorded-comments">
+              ${list
                 .map(
-                  (c) => `<li class="recorded-item">
+                  (c) => `<li class="recorded-item recorded-comment" data-recorded-comment="${escapeHtml(c.id || '')}">
                     <div class="recorded-item-main">
                       <strong>Comment</strong>${
                         c.studentName
                           ? ` · <em class="comment-student-tag">${escapeHtml(c.studentName)}</em>`
                           : ''
-                      } · ${escapeHtml(c.text)}
-                      <span>${escapeHtml(formatWhen(c.recordedAt))}</span>
+                      }
+                      <p class="recorded-comment-text">${escapeHtml(c.text)}</p>
+                      <span class="recorded-when">${escapeHtml(formatWhen(c.recordedAt))}</span>
                     </div>
-                    <button type="button" class="btn-icon-delete" data-delete-comment="${escapeHtml(c.id || '')}" data-comment-kind="${kind}" aria-label="Delete comment" title="Delete comment">
-                      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                        <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                      </svg>
-                    </button>
+                    <div class="recorded-item-actions">
+                      <button type="button" class="btn-icon-delete" data-delete-comment="${escapeHtml(c.id || '')}" data-comment-kind="${kind}" aria-label="Delete comment" title="Delete comment">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </button>
+                    </div>
                   </li>`,
                 )
                 .join('')}
@@ -1889,6 +1894,21 @@ async function saveComment(kind = 'student') {
           ? `Student comment saved for ${task.task} · ${meta.studentName}`
           : `Student comment saved for ${task.task}`
     render()
+    const field = kind === 'operational' ? 'operationalComments' : 'studentComments'
+    const newest = record?.[field]?.[record[field].length - 1]
+    requestAnimationFrame(() => {
+      const esc =
+        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+          ? CSS.escape(newest?.id || '')
+          : String(newest?.id || '').replace(/"/g, '\\"')
+      const el = newest?.id
+        ? app.querySelector(`[data-recorded-comment="${esc}"]`)
+        : app.querySelector(`[data-comment-section="${kind}"]`)
+      if (!el) return
+      el.classList.add('is-just-saved')
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      window.setTimeout(() => el.classList.remove('is-just-saved'), 2200)
+    })
   } catch (err) {
     setState({ statusMessage: err.message || 'Could not save comment.' })
   }

@@ -1625,12 +1625,26 @@ body::before {
   color: #ffffff;
 }
 
+.recorded-heading {
+  margin: 0.95rem 0 0.4rem;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--af-muted);
+  font-weight: 700;
+}
+
 .recorded-list {
   list-style: none;
   margin: 0.75rem 0 0;
   padding: 0;
   display: grid;
   gap: 0.45rem;
+}
+
+.recorded-list.recorded-comments {
+  margin-top: 0.35rem;
 }
 
 .recorded-list li {
@@ -1653,6 +1667,26 @@ body::before {
   min-width: 0;
 }
 
+.recorded-comment-text {
+  margin: 0.35rem 0 0;
+  color: var(--af-ink);
+  font-size: 0.98rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.recorded-when,
+.recorded-list li span.recorded-when {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--af-muted);
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+}
+
 .recorded-list li span {
   display: block;
   margin-top: 0.3rem;
@@ -1661,6 +1695,22 @@ body::before {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-size: 0.7rem;
+}
+
+.recorded-comment.is-just-saved {
+  animation: comment-just-saved 0.55s ease-in-out 3;
+  border-color: var(--action-blue-border);
+  background: rgba(30, 144, 255, 0.16);
+}
+
+@keyframes comment-just-saved {
+  0%,
+  100% {
+    background: rgba(30, 144, 255, 0.1);
+  }
+  50% {
+    background: rgba(30, 144, 255, 0.28);
+  }
 }
 
 .btn-icon-delete {
