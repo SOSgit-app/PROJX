@@ -751,6 +751,17 @@ body::before {
   text-align: left;
 }
 
+.task-timer-sticky {
+  position: sticky;
+  top: 0.55rem;
+  z-index: 30;
+  background: var(--surface-strong);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 28px rgba(0, 8, 24, 0.28);
+  border-color: var(--action-blue-border);
+}
+
 .task-section .grade-label {
   margin-bottom: 0.55rem;
 }
@@ -1175,29 +1186,35 @@ body::before {
 
 .penalty-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  grid-template-columns: 1fr;
   gap: 0.55rem;
   margin-top: 0.55rem;
+}
+
+@media (min-width: 720px) {
+  .penalty-list {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .penalty-option {
   appearance: none;
   width: 100%;
-  min-height: 3.4rem;
+  min-height: 3.6rem;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  text-align: center;
+  text-align: left;
   border: 1px solid transparent;
   border-radius: var(--radius);
-  padding: 0.55rem 0.5rem;
-  font-family: var(--font-display);
-  font-size: 0.88rem;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  line-height: 1.2;
-  font-weight: 700;
+  padding: 0.7rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  line-height: 1.35;
+  font-weight: 600;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
@@ -1209,12 +1226,17 @@ body::before {
 }
 
 .penalty-secs {
-  display: block;
-  margin-top: 0.2rem;
+  display: inline-block;
+  margin-top: 0.4rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.22);
+  font-family: var(--font-display);
   font-size: 0.72rem;
   letter-spacing: 0.08em;
-  opacity: 0.9;
-  font-weight: 600;
+  text-transform: uppercase;
+  opacity: 0.95;
+  font-weight: 700;
 }
 
 .recorded-item-actions {

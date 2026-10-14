@@ -1,7 +1,7 @@
 /**
  * Task-specific Project X penalties (26D notetakers).
- * label = 3–4 words for fast tap during live execution
- * detail = full rule text (what gets recorded)
+ * label = short fallback title
+ * detail = full rule text (shown on quick-tap buttons and recorded)
  * tone = color family (red-* for touch-red fouls)
  * seconds = countdown length parsed from detail (30, 60, …)
  */
@@ -43,7 +43,31 @@ export const TASK_PENALTIES = {
     p('Person touches red', 'Anyone touches red, water, black padding, or minefield. (30/RTB)', 'red-person'),
   ],
   '5A': [
-    p('Touch red area', 'Anyone or anything touches a red area. (30)', 'red-any'),
+    p(
+      'Anyone or anything touches a red area (30)',
+      'Anyone or anything touches a red area. (30)',
+      'red-any',
+    ),
+    p(
+      'Equipment touches the mined area (30)',
+      'Equipment touches the mined area. (30)',
+      'mine',
+    ),
+    p(
+      'Anyone touches the water or gets splashed — wet plank may be touched (30)',
+      'Anyone touches the water or gets splashed. (Wet plank may be touched) (30)',
+      'water',
+    ),
+    p(
+      'Anyone or anything falls into the water (30/RTB/RTT)',
+      'Anyone/Anything falls into the water. (30/RTB/RTT)',
+      'water',
+    ),
+    p(
+      'Anyone touches the mined area (60)',
+      'Anyone touches the mined area. (60)',
+      'mine',
+    ),
   ],
   '6A': [
     p('Person touches red', 'Anyone (including the dummy), touches ground, black padding, red area, or falls in the water. (30/RTB)', 'red-person'),

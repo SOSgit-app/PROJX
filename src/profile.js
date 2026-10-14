@@ -461,6 +461,7 @@ export async function addTaskComment(
       id: crypto.randomUUID(),
       text,
       recordedAt: new Date().toISOString(),
+      timerMs: getTaskElapsedMs(rec),
       ...(kind === 'student' && studentId
         ? { studentId, studentName: studentName || null }
         : {}),
@@ -479,6 +480,7 @@ export async function addTaskPenalty(classId, flightId, taskCode, penaltyText, s
       id: crypto.randomUUID(),
       text: String(penaltyText || '').trim(),
       recordedAt: new Date().toISOString(),
+      timerMs: getTaskElapsedMs(rec),
       seconds: secs,
     })
     return rec

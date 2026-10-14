@@ -991,6 +991,14 @@ function formatWhen(iso) {
   }
 }
 
+/** Timer mark when a penalty/comment was logged (preferred UI stamp). */
+function formatTimerAt(entry) {
+  if (typeof entry?.timerMs === 'number' && Number.isFinite(entry.timerMs) && entry.timerMs >= 0) {
+    return `Timer ${formatDuration(entry.timerMs)}`
+  }
+  return 'Timer —'
+}
+
 function renderTask() {
   const sq = selectedSquadron() || squadronForFlightId(state.flightId)
   const flight = selectedFlight()
@@ -1055,7 +1063,7 @@ function renderTask() {
           </div>
         </section>
 
-        <section class="task-section task-section-center" aria-labelledby="task-timer-heading">
+        <section class="task-section task-section-center task-timer-sticky" aria-labelledby="task-timer-heading">
           <p class="grade-label" id="task-timer-heading">Task timer</p>
           <p class="timer-display" id="task-timer-display">${escapeHtml(formatDuration(elapsedMs))}</p>
           <div class="timer-actions">
@@ -1090,11 +1098,13 @@ function renderTask() {
                     .map(
                       (p, i) => `
               <button type="button" class="penalty-option tone-${escapeHtml(p.tone || 'other')}" data-record-penalty="${i}" role="listitem" title="${escapeHtml(p.detail || p.label)}">
-                <span class="penalty-label">${escapeHtml(p.label)}</span>
+                <span class="penalty-label">${escapeHtml(p.detail || p.label)}</span>
                 ${
                   typeof p.seconds === 'number' && p.seconds > 0
                     ? `<span class="penalty-secs">${p.seconds}s</span>`
-                    : ''
+                    : /incomplete/i.test(p.detail || p.label)
+                      ? `<span class="penalty-secs">Incomplete</span>`
+                      : ''
                 }
               </button>`,
                     )
@@ -1114,7 +1124,7 @@ function renderTask() {
                       return `<li class="recorded-item recorded-penalty" data-recorded-penalty="${escapeHtml(p.id || '')}">
                         <div class="recorded-item-main">
                           <strong>Penalty</strong> · ${escapeHtml(p.text)}
-                          <span>${escapeHtml(formatWhen(p.recordedAt))}</span>
+                          <span class="recorded-when">${escapeHtml(formatTimerAt(p))}</span>
                         </div>
                         <div class="recorded-item-actions">
                           ${
@@ -1244,16 +1254,18 @@ function renderCommentSection(kind, title, placeholder, comments) {
           ? `<p class="recorded-heading">Submitted comments</p>
             <ul class="recorded-list recorded-comments">
               ${list
-                .map(
-                  (c) => `<li class="recorded-item recorded-comment" data-recorded-comment="${escapeHtml(c.id || '')}">
+                .map((c, i) => {
+                  const who =
+                    kind === 'student'
+                      ? c.studentName
+                        ? ` · <em class="comment-student-tag">${escapeHtml(c.studentName)}</em>`
+                        : ` · <em class="comment-student-tag">Whole flight</em>`
+                      : ''
+                  return `<li class="recorded-item recorded-comment" data-recorded-comment="${escapeHtml(c.id || '')}">
                     <div class="recorded-item-main">
-                      <strong>Comment</strong>${
-                        c.studentName
-                          ? ` · <em class="comment-student-tag">${escapeHtml(c.studentName)}</em>`
-                          : ''
-                      }
+                      <strong>Comment ${i + 1}</strong>${who}
                       <p class="recorded-comment-text">${escapeHtml(c.text)}</p>
-                      <span class="recorded-when">${escapeHtml(formatWhen(c.recordedAt))}</span>
+                      <span class="recorded-when">${escapeHtml(formatTimerAt(c))}</span>
                     </div>
                     <div class="recorded-item-actions">
                       <button type="button" class="btn-icon-delete" data-delete-comment="${escapeHtml(c.id || '')}" data-comment-kind="${kind}" aria-label="Delete comment" title="Delete comment">
@@ -1262,8 +1274,8 @@ function renderCommentSection(kind, title, placeholder, comments) {
                         </svg>
                       </button>
                     </div>
-                  </li>`,
-                )
+                  </li>`
+                })
                 .join('')}
             </ul>
             <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-comments" data-comment-kind="${kind}">Clear comments</button>`

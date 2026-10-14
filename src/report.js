@@ -85,7 +85,7 @@ export async function downloadFlightReport({
     ['Phase', 'Day', 'Order', 'Task', 'Result', 'Criterion', 'Level', 'Last Updated'],
   ]
   const penaltyRows = [
-    ['Phase', 'Day', 'Order', 'Task', 'Result', 'Penalty', 'Recorded At'],
+    ['Phase', 'Day', 'Order', 'Task', 'Result', 'Penalty', 'Timer At', 'Clock Time'],
   ]
   const studentRows = [
     [
@@ -94,9 +94,11 @@ export async function downloadFlightReport({
       'Order',
       'Task',
       'Result',
+      '#',
       'Student',
       'Student Related Comment',
-      'Recorded At',
+      'Timer At',
+      'Clock Time',
     ],
   ]
   const operationalRows = [
@@ -106,8 +108,10 @@ export async function downloadFlightReport({
       'Order',
       'Task',
       'Result',
+      '#',
       'Operational/Equipment Comment',
-      'Recorded At',
+      'Timer At',
+      'Clock Time',
     ],
   ]
 
@@ -197,44 +201,49 @@ export async function downloadFlightReport({
         t.task,
         resultLabel,
         p.text || '',
+        formatTimerStamp(p.timerMs),
         formatStamp(p.recordedAt),
       ])
     }
 
-    for (const c of studentComments) {
+    studentComments.forEach((c, i) => {
       studentRows.push([
         t.phase,
         t.day,
         t.order ?? '',
         t.task,
         resultLabel,
-        c.studentName || '',
+        i + 1,
+        c.studentName || 'Whole flight',
         c.text || '',
+        formatTimerStamp(c.timerMs),
         formatStamp(c.recordedAt),
       ])
-    }
+    })
 
-    for (const c of operationalComments) {
+    operationalComments.forEach((c, i) => {
       operationalRows.push([
         t.phase,
         t.day,
         t.order ?? '',
         t.task,
         resultLabel,
+        i + 1,
         c.text || '',
+        formatTimerStamp(c.timerMs),
         formatStamp(c.recordedAt),
       ])
-    }
+    })
   }
 
   if (rubricRows.length === 1) {
     rubricRows.push(['—', '—', '', '', '', 'No rubric marks recorded', '', ''])
   }
   if (penaltyRows.length === 1) {
-    penaltyRows.push(['—', '—', '', '', '', 'No penalties recorded', ''])
+    penaltyRows.push(['—', '—', '', '', '', 'No penalties recorded', '', ''])
   }
   if (studentRows.length === 1) {
-    studentRows.push(['—', '—', '', '', '', '', 'No student comments recorded', ''])
+    studentRows.push(['—', '—', '', '', '', '', '', 'No student comments recorded', '', ''])
   }
   if (operationalRows.length === 1) {
     operationalRows.push([
@@ -243,7 +252,9 @@ export async function downloadFlightReport({
       '',
       '',
       '',
+      '',
       'No operational/equipment comments recorded',
+      '',
       '',
     ])
   }
@@ -318,7 +329,7 @@ export async function downloadFlightReport({
   XLSX.utils.book_append_sheet(wb, rubricSheet, 'Rubric')
 
   const penaltiesSheet = XLSX.utils.aoa_to_sheet(penaltyRows)
-  penaltiesSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 70, 22])
+  penaltiesSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 70, 12, 22])
   XLSX.utils.book_append_sheet(wb, penaltiesSheet, 'Penalties')
 
   const rosterSheet = XLSX.utils.aoa_to_sheet(rosterRows)
@@ -326,11 +337,11 @@ export async function downloadFlightReport({
   XLSX.utils.book_append_sheet(wb, rosterSheet, 'Students')
 
   const studentSheet = XLSX.utils.aoa_to_sheet(studentRows)
-  studentSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 18, 70, 22])
+  studentSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 6, 18, 70, 12, 22])
   XLSX.utils.book_append_sheet(wb, studentSheet, 'Student Comments')
 
   const operationalSheet = XLSX.utils.aoa_to_sheet(operationalRows)
-  operationalSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 70, 22])
+  operationalSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 6, 70, 12, 22])
   XLSX.utils.book_append_sheet(wb, operationalSheet, 'Operational Comments')
 
   const stamp = exportedAt.toISOString().replace(/[:.]/g, '-').slice(0, 19)
@@ -361,6 +372,13 @@ export async function downloadFlightReport({
     rubricMarkCount,
     commentCount: studentCommentCount + operationalCommentCount,
   }
+}
+
+function formatTimerStamp(ms) {
+  if (typeof ms === 'number' && Number.isFinite(ms) && ms >= 0) {
+    return formatDuration(ms)
+  }
+  return ''
 }
 
 function formatStamp(iso) {
