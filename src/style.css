@@ -1030,6 +1030,83 @@ body::before {
   text-align: left;
 }
 
+.btn-injury {
+  width: 100%;
+  min-height: 52px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  border-color: rgba(229, 115, 115, 0.65);
+  background: rgba(160, 40, 40, 0.55);
+  color: #ffe8e8;
+}
+
+.btn-injury:hover,
+.btn-injury:active {
+  border-color: #ef9a9a;
+  background: rgba(190, 50, 50, 0.7);
+  color: #fff5f5;
+}
+
+.injuries-dropdown {
+  margin-top: 0.75rem;
+}
+
+.modal-fieldset {
+  margin: 0 0 0.95rem;
+  padding: 0;
+  border: none;
+}
+
+.modal-fieldset legend {
+  margin: 0 0 0.45rem;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--af-muted);
+}
+
+.choice-grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.choice-option {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: var(--touch);
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--inset-bg);
+  color: var(--af-ink);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.choice-option:has(input:checked) {
+  border-color: var(--action-blue-border);
+  background: rgba(30, 144, 255, 0.14);
+}
+
+.choice-option input {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+  accent-color: var(--action-blue);
+}
+
+.modal-textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+  font-family: var(--font-body);
+  line-height: 1.4;
+}
+
 .btn.btn-finalize {
   width: 100%;
   min-height: 52px;

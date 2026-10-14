@@ -17,9 +17,11 @@ import {
 } from './rubric.js'
 import {
   addTaskComment,
+  addTaskInjury,
   addTaskPenalty,
   buildFlightBackup,
   clearTaskComments,
+  clearTaskInjuries,
   clearTaskPenalties,
   clearTaskRubric,
   downloadFlightBackup,
@@ -31,6 +33,7 @@ import {
   normalizeResult,
   pauseTaskTimer,
   removeTaskComment,
+  removeTaskInjury,
   removeTaskPenalty,
   restartTaskTimer,
   restoreFlightBackupFromFile,
@@ -999,6 +1002,18 @@ function formatTimerAt(entry) {
   return 'Timer —'
 }
 
+function injurySeverityLabel(severity) {
+  if (severity === 'major') return 'Major injury'
+  if (severity === 'minor') return 'Minor injury'
+  return 'Injury'
+}
+
+function injuryImpactLabel(impact) {
+  if (impact === 'halted') return 'Halted the task entirely'
+  if (impact === 'paused') return 'Paused the task for a short time'
+  return 'Impact not specified'
+}
+
 function renderTask() {
   const sq = selectedSquadron() || squadronForFlightId(state.flightId)
   const flight = selectedFlight()
@@ -1014,6 +1029,7 @@ function renderTask() {
   const recordedPenalties = record?.penalties || []
   const studentComments = record?.studentComments || record?.comments || []
   const operationalComments = record?.operationalComments || []
+  const recordedInjuries = Array.isArray(record?.injuries) ? record.injuries : []
   const rubric = normalizeRubric(record?.rubric)
   const timerRunning = Boolean(record?.timerStartedAt)
   const timerPaused =
@@ -1028,6 +1044,7 @@ function renderTask() {
     recordedPenalties.length > 0 ||
     studentComments.length > 0 ||
     operationalComments.length > 0 ||
+    recordedInjuries.length > 0 ||
     rubricHasMarks(rubric) ||
     timerRunning ||
     timerPaused ||
@@ -1154,6 +1171,44 @@ function renderTask() {
 
         ${renderCommentSection('student', 'Student Related Comments', 'Add a student-related comment', studentComments)}
         ${renderCommentSection('operational', 'Operational/Equipment Comments', 'Add an operational or equipment comment', operationalComments)}
+
+        <section class="task-section" aria-labelledby="task-injury-heading">
+          <p class="grade-label" id="task-injury-heading">Injury</p>
+          <button type="button" class="btn btn-injury" data-action="open-injury">Injury</button>
+          ${
+            recordedInjuries.length
+              ? `<details class="comments-dropdown injuries-dropdown" data-injuries-dropdown>
+                  <summary class="comments-dropdown-toggle">
+                    Recorded injuries (${recordedInjuries.length})
+                  </summary>
+                  <div class="comments-dropdown-body">
+                    <ul class="recorded-list recorded-comments">
+                      ${recordedInjuries
+                        .map(
+                          (inj, i) => `<li class="recorded-item recorded-comment" data-recorded-injury="${escapeHtml(inj.id || '')}">
+                            <div class="recorded-item-main">
+                              <strong>Injury ${i + 1}</strong> · ${escapeHtml(injurySeverityLabel(inj.severity))}
+                              <p class="recorded-comment-text">${escapeHtml(injuryImpactLabel(inj.impact))}</p>
+                              <p class="recorded-comment-text">${escapeHtml(inj.note || '')}</p>
+                              <span class="recorded-when">${escapeHtml(formatTimerAt(inj))}</span>
+                            </div>
+                            <div class="recorded-item-actions">
+                              <button type="button" class="btn-icon-delete" data-delete-injury="${escapeHtml(inj.id || '')}" aria-label="Delete injury" title="Delete injury">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </li>`,
+                        )
+                        .join('')}
+                    </ul>
+                    <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-injuries">Clear injuries</button>
+                  </div>
+                </details>`
+              : ''
+          }
+        </section>
 
         <section class="task-section" aria-labelledby="task-finalize-heading">
           <p class="grade-label" id="task-finalize-heading">Backup</p>
@@ -1483,6 +1538,58 @@ function renderModal() {
       </div>`
   }
 
+  if (modal.type === 'injury') {
+    const severity = modal.severity || ''
+    const impact = modal.impact || ''
+    const note = modal.note || ''
+    return `
+      <div class="modal-backdrop" data-action="close-modal" role="presentation">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-injury-title" data-stop-modal>
+          <h2 id="modal-injury-title">Record injury</h2>
+          <p class="modal-lead">Log a minor or major injury for this task.</p>
+
+          <fieldset class="modal-fieldset">
+            <legend>Severity</legend>
+            <div class="choice-grid">
+              <label class="choice-option">
+                <input type="radio" name="injury-severity" value="minor" ${severity === 'minor' ? 'checked' : ''} />
+                <span>Minor injury</span>
+              </label>
+              <label class="choice-option">
+                <input type="radio" name="injury-severity" value="major" ${severity === 'major' ? 'checked' : ''} />
+                <span>Major injury</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="modal-fieldset">
+            <legend>Did the injury halt the task entirely?</legend>
+            <div class="choice-grid">
+              <label class="choice-option">
+                <input type="radio" name="injury-impact" value="halted" ${impact === 'halted' ? 'checked' : ''} />
+                <span>Yes — halted entirely</span>
+              </label>
+              <label class="choice-option">
+                <input type="radio" name="injury-impact" value="paused" ${impact === 'paused' ? 'checked' : ''} />
+                <span>No — paused for a short time</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <label class="modal-field">
+            <span>Injury type / notes (or Other)</span>
+            <textarea id="modal-injury-note" class="modal-input modal-textarea" rows="3" placeholder="Describe the injury type, or enter Other…">${escapeHtml(note)}</textarea>
+          </label>
+
+          <div class="modal-actions">
+            <button type="button" class="btn" data-action="close-modal">Cancel</button>
+            <button type="button" class="btn btn-primary" data-action="finish-injury">Save injury</button>
+          </div>
+          ${modal.error ? `<p class="modal-error">${escapeHtml(modal.error)}</p>` : ''}
+        </div>
+      </div>`
+  }
+
   return ''
 }
 
@@ -1502,6 +1609,18 @@ function openStudentNamesModal() {
     modal: {
       type: 'students',
       names: existing.length ? existing.map((s) => s.name) : [''],
+      error: '',
+    },
+  })
+}
+
+function openInjuryModal() {
+  setState({
+    modal: {
+      type: 'injury',
+      severity: '',
+      impact: '',
+      note: '',
       error: '',
     },
   })
@@ -1654,6 +1773,51 @@ function bindModal() {
       }
     })
   })
+
+  app.querySelectorAll('[data-action="finish-injury"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      void finishInjuryFromModal()
+    })
+  })
+}
+
+async function finishInjuryFromModal() {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({
+      modal: { ...state.modal, error: 'Set a class profile before recording an injury.' },
+    })
+    return
+  }
+  const severity = app.querySelector('input[name="injury-severity"]:checked')?.value || ''
+  const impact = app.querySelector('input[name="injury-impact"]:checked')?.value || ''
+  const note = app.querySelector('#modal-injury-note')?.value || ''
+  try {
+    const record = await addTaskInjury(classId, state.flightId, task.task, {
+      severity,
+      impact,
+      note,
+    })
+    state.taskRecord = record
+    state.recordCache[cacheKey(task.task)] = record
+    state.classId = classId
+    setState({
+      modal: null,
+      statusMessage: `${injurySeverityLabel(severity)} recorded for ${task.task}`,
+    })
+  } catch (err) {
+    setState({
+      modal: {
+        ...state.modal,
+        severity,
+        impact,
+        note,
+        error: err.message || 'Could not save injury.',
+      },
+    })
+  }
 }
 
 function bindChrome() {
@@ -1964,6 +2128,38 @@ async function clearComments(kind = 'student') {
   render()
 }
 
+async function clearInjuries() {
+  const task = activeTaskRecord()
+  if (!task) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile first.' })
+    return
+  }
+  const record = await clearTaskInjuries(classId, state.flightId, task.task)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  state.statusMessage = `Cleared injuries for ${task.task}`
+  render()
+}
+
+async function deleteInjury(injuryId) {
+  const task = activeTaskRecord()
+  if (!task || !injuryId) return
+  const classId = requireClassId()
+  if (!classId) {
+    setState({ statusMessage: 'Set a class profile first.' })
+    return
+  }
+  const record = await removeTaskInjury(classId, state.flightId, task.task, injuryId)
+  state.taskRecord = record
+  state.recordCache[cacheKey(task.task)] = record
+  state.classId = classId
+  state.statusMessage = `Deleted injury for ${task.task}`
+  render()
+}
+
 async function deletePenalty(penaltyId) {
   const task = activeTaskRecord()
   if (!task || !penaltyId) return
@@ -2079,6 +2275,12 @@ function bindTaskActions() {
   app.querySelectorAll('[data-action="clear-comments"]').forEach((el) => {
     el.addEventListener('click', () => clearComments(el.dataset.commentKind || 'student'))
   })
+  app.querySelectorAll('[data-action="open-injury"]').forEach((el) => {
+    el.addEventListener('click', openInjuryModal)
+  })
+  app.querySelectorAll('[data-action="clear-injuries"]').forEach((el) => {
+    el.addEventListener('click', () => clearInjuries())
+  })
   app.querySelectorAll('[data-delete-penalty]').forEach((el) => {
     el.addEventListener('click', () => deletePenalty(el.dataset.deletePenalty))
   })
@@ -2086,6 +2288,9 @@ function bindTaskActions() {
     el.addEventListener('click', () =>
       deleteComment(el.dataset.deleteComment, el.dataset.commentKind || 'student'),
     )
+  })
+  app.querySelectorAll('[data-delete-injury]').forEach((el) => {
+    el.addEventListener('click', () => deleteInjury(el.dataset.deleteInjury))
   })
   app.querySelectorAll('[data-action="finalize-task"]').forEach((el) => {
     el.addEventListener('click', () => finalizeTask())

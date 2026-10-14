@@ -51,6 +51,7 @@ export async function downloadFlightReport({
   let penaltyCount = 0
   let studentCommentCount = 0
   let operationalCommentCount = 0
+  let injuryCount = 0
   let rubricMarkCount = 0
   let tasksWithRubric = 0
   let totalDurationMs = 0
@@ -78,6 +79,7 @@ export async function downloadFlightReport({
       'Penalties',
       'Student Comments',
       'Operational Comments',
+      'Injuries',
       'Last Updated',
     ],
   ]
@@ -86,6 +88,21 @@ export async function downloadFlightReport({
   ]
   const penaltyRows = [
     ['Phase', 'Day', 'Order', 'Task', 'Result', 'Penalty', 'Timer At', 'Clock Time'],
+  ]
+  const injuryRows = [
+    [
+      'Phase',
+      'Day',
+      'Order',
+      'Task',
+      'Result',
+      '#',
+      'Severity',
+      'Impact',
+      'Injury Type / Notes',
+      'Timer At',
+      'Clock Time',
+    ],
   ]
   const studentRows = [
     [
@@ -147,9 +164,11 @@ export async function downloadFlightReport({
     const operationalComments = Array.isArray(record?.operationalComments)
       ? record.operationalComments
       : []
+    const injuries = Array.isArray(record?.injuries) ? record.injuries : []
     penaltyCount += penalties.length
     studentCommentCount += studentComments.length
     operationalCommentCount += operationalComments.length
+    injuryCount += injuries.length
 
     const durationMs = record?.durationMs
     if (typeof durationMs === 'number' && Number.isFinite(durationMs)) {
@@ -177,6 +196,7 @@ export async function downloadFlightReport({
       penalties.length,
       studentComments.length,
       operationalComments.length,
+      injuries.length,
       formatStamp(record?.updatedAt),
     ])
 
@@ -234,6 +254,26 @@ export async function downloadFlightReport({
         formatStamp(c.recordedAt),
       ])
     })
+
+    injuries.forEach((inj, i) => {
+      injuryRows.push([
+        t.phase,
+        t.day,
+        t.order ?? '',
+        t.task,
+        resultLabel,
+        i + 1,
+        inj.severity === 'major' ? 'Major' : inj.severity === 'minor' ? 'Minor' : '',
+        inj.impact === 'halted'
+          ? 'Halted entirely'
+          : inj.impact === 'paused'
+            ? 'Paused briefly'
+            : '',
+        inj.note || '',
+        formatTimerStamp(inj.timerMs),
+        formatStamp(inj.recordedAt),
+      ])
+    })
   }
 
   if (rubricRows.length === 1) {
@@ -254,6 +294,21 @@ export async function downloadFlightReport({
       '',
       '',
       'No operational/equipment comments recorded',
+      '',
+      '',
+    ])
+  }
+  if (injuryRows.length === 1) {
+    injuryRows.push([
+      '—',
+      '—',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'No injuries recorded',
       '',
       '',
     ])
@@ -298,6 +353,7 @@ export async function downloadFlightReport({
     ['Penalty entries', penaltyCount],
     ['Student comments', studentCommentCount],
     ['Operational/equipment comments', operationalCommentCount],
+    ['Injuries', injuryCount],
     ['Tasks with rubric marks', tasksWithRubric],
     ['Rubric marks', rubricMarkCount],
     ['Timed tasks', timedTasks],
@@ -313,6 +369,7 @@ export async function downloadFlightReport({
     ['Students', 'Flight roster names'],
     ['Student Comments', 'Student related comments (optional student tagged)'],
     ['Operational Comments', 'Operational/equipment comments'],
+    ['Injuries', 'Minor/major injury logs with halt/pause impact and notes'],
   ]
 
   const wb = XLSX.utils.book_new()
@@ -321,7 +378,7 @@ export async function downloadFlightReport({
   XLSX.utils.book_append_sheet(wb, summary, 'Summary')
 
   const scores = XLSX.utils.aoa_to_sheet(scoreRows)
-  scores['!cols'] = colWidths([10, 8, 8, 10, 12, 10, 14, 16, 12, 12, 10, 16, 18, 22])
+  scores['!cols'] = colWidths([10, 8, 8, 10, 12, 10, 14, 16, 12, 12, 10, 16, 12, 18, 22])
   XLSX.utils.book_append_sheet(wb, scores, 'Task Scores')
 
   const rubricSheet = XLSX.utils.aoa_to_sheet(rubricRows)
@@ -343,6 +400,10 @@ export async function downloadFlightReport({
   const operationalSheet = XLSX.utils.aoa_to_sheet(operationalRows)
   operationalSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 6, 70, 12, 22])
   XLSX.utils.book_append_sheet(wb, operationalSheet, 'Operational Comments')
+
+  const injuriesSheet = XLSX.utils.aoa_to_sheet(injuryRows)
+  injuriesSheet['!cols'] = colWidths([10, 8, 8, 10, 12, 6, 12, 18, 40, 12, 22])
+  XLSX.utils.book_append_sheet(wb, injuriesSheet, 'Injuries')
 
   const stamp = exportedAt.toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const phaseFile = phaseKey === '2' ? 'PhaseII' : 'PhaseI'
@@ -369,6 +430,7 @@ export async function downloadFlightReport({
     complete,
     incomplete,
     penaltyCount,
+    injuryCount,
     rubricMarkCount,
     commentCount: studentCommentCount + operationalCommentCount,
   }

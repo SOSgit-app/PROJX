@@ -74,6 +74,7 @@ function emptyRecord(classId, flightId, taskCode) {
     penalties: [],
     studentComments: [],
     operationalComments: [],
+    injuries: [],
     rubric: emptyRubric(),
     timerStartedAt: null,
     timerAccumulatedMs: 0,
@@ -99,6 +100,7 @@ export function normalizeRecord(raw, classId, flightId, taskCode) {
   const operationalComments = Array.isArray(raw.operationalComments)
     ? raw.operationalComments
     : []
+  const injuries = Array.isArray(raw.injuries) ? raw.injuries : []
 
   return {
     ...base,
@@ -111,6 +113,7 @@ export function normalizeRecord(raw, classId, flightId, taskCode) {
     penalties: Array.isArray(raw.penalties) ? raw.penalties : [],
     studentComments,
     operationalComments,
+    injuries,
     rubric: normalizeRubric(raw.rubric),
     timerStartedAt: raw.timerStartedAt || null,
     timerAccumulatedMs:
@@ -193,6 +196,7 @@ export async function buildFlightBackup(classId, flightId) {
       operationalComments: Array.isArray(r.operationalComments)
         ? r.operationalComments
         : [],
+      injuries: Array.isArray(r.injuries) ? r.injuries : [],
       rubric: normalizeRubric(r.rubric),
       timerStartedAt: r.timerStartedAt || null,
       timerAccumulatedMs: r.timerAccumulatedMs ?? 0,
@@ -323,6 +327,7 @@ async function mutateTaskRecord(classId, flightId, taskCode, mutator) {
     penalties: [...current.penalties],
     studentComments: [...current.studentComments],
     operationalComments: [...current.operationalComments],
+    injuries: [...(current.injuries || [])],
     rubric: { ...normalizeRubric(current.rubric) },
   })
   next.path = recordPath(classId, flightId, taskCode)
@@ -483,6 +488,47 @@ export async function addTaskPenalty(classId, flightId, taskCode, penaltyText, s
       timerMs: getTaskElapsedMs(rec),
       seconds: secs,
     })
+    return rec
+  })
+}
+
+/**
+ * @param {{ severity: 'minor'|'major', impact: 'halted'|'paused', note?: string }} injury
+ */
+export async function addTaskInjury(classId, flightId, taskCode, injury) {
+  const severity = injury?.severity === 'major' ? 'major' : injury?.severity === 'minor' ? 'minor' : null
+  const impact = injury?.impact === 'halted' ? 'halted' : injury?.impact === 'paused' ? 'paused' : null
+  const note = String(injury?.note || '').trim()
+  if (!severity) throw new Error('Select Minor or Major injury.')
+  if (!impact) throw new Error('Select whether the injury halted or paused the task.')
+  if (!note) throw new Error('Describe the injury type (or enter Other).')
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    if (!Array.isArray(rec.injuries)) rec.injuries = []
+    rec.injuries.push({
+      id: crypto.randomUUID(),
+      severity,
+      impact,
+      note,
+      recordedAt: new Date().toISOString(),
+      timerMs: getTaskElapsedMs(rec),
+    })
+    return rec
+  })
+}
+
+export async function removeTaskInjury(classId, flightId, taskCode, injuryId) {
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    const id = String(injuryId || '')
+    if (id) {
+      rec.injuries = (rec.injuries || []).filter((item) => String(item.id) !== id)
+    }
+    return rec
+  })
+}
+
+export async function clearTaskInjuries(classId, flightId, taskCode) {
+  return mutateTaskRecord(classId, flightId, taskCode, (rec) => {
+    rec.injuries = []
     return rec
   })
 }
