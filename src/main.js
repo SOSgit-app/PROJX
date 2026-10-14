@@ -1912,22 +1912,13 @@ async function saveComment(kind = 'student') {
           ? `Student comment saved for ${task.task} · ${meta.studentName}`
           : `Student comment saved for ${task.task}`
     render()
-    const field = kind === 'operational' ? 'operationalComments' : 'studentComments'
-    const newest = record?.[field]?.[record[field].length - 1]
     requestAnimationFrame(() => {
+      const section = app.querySelector(`[data-comment-section="${kind}"]`)
       const dropdown = app.querySelector(`[data-comments-dropdown="${kind}"]`)
-      if (dropdown) dropdown.open = true
-      const esc =
-        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-          ? CSS.escape(newest?.id || '')
-          : String(newest?.id || '').replace(/"/g, '\\"')
-      const el = newest?.id
-        ? app.querySelector(`[data-recorded-comment="${esc}"]`)
-        : app.querySelector(`[data-comment-section="${kind}"]`)
-      if (!el) return
-      el.classList.add('is-just-saved')
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      window.setTimeout(() => el.classList.remove('is-just-saved'), 2200)
+      if (dropdown) dropdown.open = false
+      const target = dropdown || section
+      if (!target) return
+      target.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     })
   } catch (err) {
     setState({ statusMessage: err.message || 'Could not save comment.' })
