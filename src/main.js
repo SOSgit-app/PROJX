@@ -1222,7 +1222,7 @@ function renderCommentSection(kind, title, placeholder, comments) {
     kind === 'student'
       ? `<label class="student-comment-picker">
           <span>Student (optional)</span>
-          <select id="task-comment-student" class="student-select">
+          <select id="task-comment-student-select" class="student-select">
             <option value="">Whole flight / none</option>
             ${students
               .map(
@@ -1873,7 +1873,7 @@ async function saveComment(kind = 'student') {
   const text = textarea?.value || ''
   let meta = {}
   if (kind === 'student') {
-    const select = app.querySelector('#task-comment-student')
+    const select = app.querySelector('#task-comment-student-select')
     const studentId = select?.value || ''
     if (studentId) {
       const student = currentFlightStudents().find((s) => s.id === studentId)
