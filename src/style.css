@@ -1659,6 +1659,59 @@ body::before {
   font-weight: 700;
 }
 
+.comments-dropdown {
+  margin-top: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--inset-bg);
+}
+
+.comments-dropdown-toggle {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: var(--touch);
+  padding: 0.65rem 0.85rem;
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--af-ink);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.comments-dropdown-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.comments-dropdown-toggle::after {
+  content: '▾';
+  font-size: 0.85rem;
+  color: var(--af-muted);
+  transition: transform 0.15s ease;
+}
+
+.comments-dropdown[open] .comments-dropdown-toggle::after {
+  transform: rotate(180deg);
+}
+
+.comments-dropdown-body {
+  padding: 0 0.75rem 0.85rem;
+}
+
+.comments-dropdown .recorded-list.recorded-comments {
+  margin-top: 0.15rem;
+}
+
+.comments-dropdown .btn-clear-list {
+  margin-top: 0.55rem;
+}
+
 .recorded-list {
   list-style: none;
   margin: 0.75rem 0 0;

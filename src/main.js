@@ -1251,34 +1251,40 @@ function renderCommentSection(kind, title, placeholder, comments) {
       <button type="button" class="btn btn-primary btn-comment-submit" data-action="submit-comment" data-comment-kind="${kind}">Submit comment</button>
       ${
         list.length
-          ? `<p class="recorded-heading">Submitted comments</p>
-            <ul class="recorded-list recorded-comments">
-              ${list
-                .map((c, i) => {
-                  const who =
-                    kind === 'student'
-                      ? c.studentName
-                        ? ` · <em class="comment-student-tag">${escapeHtml(c.studentName)}</em>`
-                        : ` · <em class="comment-student-tag">Whole flight</em>`
-                      : ''
-                  return `<li class="recorded-item recorded-comment" data-recorded-comment="${escapeHtml(c.id || '')}">
-                    <div class="recorded-item-main">
-                      <strong>Comment ${i + 1}</strong>${who}
-                      <p class="recorded-comment-text">${escapeHtml(c.text)}</p>
-                      <span class="recorded-when">${escapeHtml(formatTimerAt(c))}</span>
-                    </div>
-                    <div class="recorded-item-actions">
-                      <button type="button" class="btn-icon-delete" data-delete-comment="${escapeHtml(c.id || '')}" data-comment-kind="${kind}" aria-label="Delete comment" title="Delete comment">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                          <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </li>`
-                })
-                .join('')}
-            </ul>
-            <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-comments" data-comment-kind="${kind}">Clear comments</button>`
+          ? `<details class="comments-dropdown" data-comments-dropdown="${kind}">
+              <summary class="comments-dropdown-toggle">
+                Submitted comments (${list.length})
+              </summary>
+              <div class="comments-dropdown-body">
+                <ul class="recorded-list recorded-comments">
+                  ${list
+                    .map((c, i) => {
+                      const who =
+                        kind === 'student'
+                          ? c.studentName
+                            ? ` · <em class="comment-student-tag">${escapeHtml(c.studentName)}</em>`
+                            : ` · <em class="comment-student-tag">Whole flight</em>`
+                          : ''
+                      return `<li class="recorded-item recorded-comment" data-recorded-comment="${escapeHtml(c.id || '')}">
+                        <div class="recorded-item-main">
+                          <strong>Comment ${i + 1}</strong>${who}
+                          <p class="recorded-comment-text">${escapeHtml(c.text)}</p>
+                          <span class="recorded-when">${escapeHtml(formatTimerAt(c))}</span>
+                        </div>
+                        <div class="recorded-item-actions">
+                          <button type="button" class="btn-icon-delete" data-delete-comment="${escapeHtml(c.id || '')}" data-comment-kind="${kind}" aria-label="Delete comment" title="Delete comment">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path d="M6 7h12M10 7V5h4v2m-6 3v8m4-8v8M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </li>`
+                    })
+                    .join('')}
+                </ul>
+                <button type="button" class="btn btn-clear btn-clear-list" data-action="clear-comments" data-comment-kind="${kind}">Clear comments</button>
+              </div>
+            </details>`
           : ''
       }
     </section>
@@ -1909,6 +1915,8 @@ async function saveComment(kind = 'student') {
     const field = kind === 'operational' ? 'operationalComments' : 'studentComments'
     const newest = record?.[field]?.[record[field].length - 1]
     requestAnimationFrame(() => {
+      const dropdown = app.querySelector(`[data-comments-dropdown="${kind}"]`)
+      if (dropdown) dropdown.open = true
       const esc =
         typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
           ? CSS.escape(newest?.id || '')
